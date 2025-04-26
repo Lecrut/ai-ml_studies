@@ -1,0 +1,8 @@
+*.zip
+/pum/.vscode/
+/pum/Regresja.py
+*.docx
+/amum/.ipynb_checkpoints
+/pum/Datasets/FlapPyBird/
+**/.ipynb_checkpoints/
+*.7z
