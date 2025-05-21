@@ -7,5 +7,6 @@
 **/.ipynb_checkpoints/
 *.7z
 /wyklad-swad/
+/wyklady-pum/
 /metody_optymalizacji/
 /pum/Datasets/NASA_JPL_asteroid.csv
