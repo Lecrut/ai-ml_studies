@@ -209,6 +209,27 @@ process_garbage_classification(
     mapping=mappings['garbage_classification']
 )
 
+# # Process garbage-v2 dataset which contains battery and textiles categories
+# def process_garbage_v2(source_dir, dest_dir_root, mapping):
+#     for class_folder in tqdm(listdir(source_dir), desc="Processing garbage-v2"):
+#         class_dir = join(source_dir, class_folder)
+#         if os.path.isdir(class_dir) and class_folder in mapping:
+#             final_class = mapping[class_folder]
+#             final_class_dir = join(dest_dir_root, final_class)
+#             for img_file in tqdm(listdir(class_dir), desc=f"Processing images in {class_folder}"):
+#                 if img_file.endswith('.jpg'):
+#                     src_path = join(class_dir, img_file)
+#                     dest_path = join(final_class_dir, f"v2_{img_file}")  # dodajemy prefiks v2_ żeby uniknąć konfliktów nazw
+#                     shutil.copy(src_path, dest_path)
+#     print(f"Processed garbage-v2 from {source_dir} to {dest_dir_root}")
+
+# # Process garbage-v2 dataset to get battery and textiles
+# process_garbage_v2(
+#     source_dir='./datasets/garbage-v2',
+#     dest_dir_root=output_root,
+#     mapping=mappings['garbage-classification-v2']
+# )
+
 # now new datasets
 # first one is the recyclable-and-household-waste-classification
 # it has a simple structure, in the root folder there is an  images subfolder, with another images subfolder

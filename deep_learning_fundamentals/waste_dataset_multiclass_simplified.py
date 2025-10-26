@@ -83,7 +83,9 @@ if __name__ == '__main__':
         print(f"Split: {split}, Total Samples: {len(dataset)}")
         
         # TODO: 
-        
+        for type_of_garbage in final_classes.keys():
+            count = len(list(filter(lambda item: item[1] == final_classes[type_of_garbage], dataset)))
+            print(f"  Class '{type_of_garbage}': {count} images, percentage: {count / len(dataset) * 100:.2f}%")
         # Count images per class
         # we have to know, if our dataset is "balanced" or not
         # also question - does this even affect the training?

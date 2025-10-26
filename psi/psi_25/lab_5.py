@@ -129,7 +129,9 @@ def genetic_algorithm(tasks, generations=150, pop_size=100, mutation_rate=0.15, 
 
 
 if __name__ == "__main__":
-    filepath = "Datasets/GA_task.xlsx"
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    filepath = os.path.join(current_dir, "Datasets", "GA_task.xlsx")
     tasks = load_tasks_from_excel(filepath)
 
     best_solution, best_makespan, history = genetic_algorithm(
