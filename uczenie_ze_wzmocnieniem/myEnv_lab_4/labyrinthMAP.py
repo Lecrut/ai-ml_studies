@@ -3,10 +3,25 @@ DOWN = 1
 RIGHT = 2
 UP = 3
 
-MAP = []
+MAP = [
+    "ERRRWWWWWE",
+    "WWWRRWWWRR",
+    "RWWRRWWWRW",
+    "RRWRRWRRWR",
+    "WRWRRWWRRW",
+    "RRRRWWWRRR",
+    "WRWWWWWWRW",
+    "RRWRRWRRWR",
+    "WWWRRWWWRR",
+    "EWWWRWWWWE"
+]
+
+WIDTH = len(MAP[0])
+HEIGHT = len(MAP)
 
 class LabyrinthMap:
     def __init__(self):
+        self._states = [i for i in range(WIDTH * HEIGHT) if MAP[i // WIDTH][i % WIDTH] != 'W']
         pass
 
     def reset(self):
