@@ -11,10 +11,11 @@ wzoruj się na plikach z /env/
 Wyświetlacz: tekstowy lub graficzny (np. Pygame)
 
 Środowisko ma:. 
-- Wyznaczamy losowy labirynt 
+- Wyznaczamy labirynt w zmiennej 2D (np. lista list)
+- Labirynt zawiera ściany i ścieżki które są ze sobą połączone
 - Labirynt musi mieć 4 wejścia/wyjścia (np. w rogach)
-- W rozgrywce biorą udział 2 agenty
-- Na początku rozlosowujemy 2 wejścia jako start dla agentów, a trzecie jako cel z nagrodą
+- W rozgrywce biorą udział minimum 2 agenty
+- Na początku rozlosowujemy wejścia jako start dla agentów, a ostatnie jako cel z nagrodą
 - Agenci poruszają się na zmianę
 - Po spotkaniu agentów w tym samym polu, obaj są przenoszeni na swoje pola startowe i otrzymują karę
 - Za dotarcie do celu agent otrzymuje nagrodę i jest koniec epizodu
