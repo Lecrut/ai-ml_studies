@@ -32,7 +32,7 @@ def get_entrances(num_agents):
             if MAP[y][x] == 'E':
                 entrances.append((x, y))
 
-    n_agents = max(2, min(num_agents, len(entrances) - 1))
+    n_agents = max(2, min(num_agents + 1, len(entrances) - 1))
     return random.sample(entrances, n_agents)
 
 def is_walkable(x, y):
@@ -119,23 +119,25 @@ class LabyrinthMap:
             return GOAL_REWARD
         return STEP_REWARD
 
-    def step(self, action):
-        rewards = []
-        for agent in self._agents:
-            current_state = agent.get_current_state()
-            next_states = self.get_next_states(current_state, action)
-            if next_states:
-                next_state = next_states[0]
-            else:
-                next_state = current_state
-            reward = self.get_reward(current_state, action, next_state)
-            agent.set_state(next_state)
-            rewards.append(reward)
+    def step(self, agent_idx, action):
+        agent = self._agents[agent_idx]
+        cur = agent.get_current_state()
 
-        positions = [agent.get_current_state().get_position() for agent in self._agents]
+        candidates = self.get_next_states(cur, action)
+        next_state = candidates[0] if candidates else cur  # brak ruchu jeśli ściana/poza mapą
+
+        reward = self.get_reward(cur, action, next_state)
+        agent.set_state(next_state)
+
+        if self.is_terminal(next_state):
+            return next_state, GOAL_REWARD, True
+
+        positions = [ag.get_current_state().get_position() for ag in self._agents]
         if len(positions) != len(set(positions)):
-            for agent in self._agents:
-                agent.reset()
-            rewards = [reward + COLLISION_PENALTY for reward in rewards]
+            collided_positions = {p for p in positions if positions.count(p) > 1}
+            for ag in self._agents:
+                if ag.get_current_state().get_position() in collided_positions:
+                    ag.reset()
+            reward += COLLISION_PENALTY
 
-        return rewards
+        return agent.get_current_state(), reward, False
