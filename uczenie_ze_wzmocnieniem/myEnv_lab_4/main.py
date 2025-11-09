@@ -1,11 +1,39 @@
 #%% Imports
 from agents.QLearningAgent import QLearningAgent
+from agents.DQLearningAgent import DQLearningAgent
+from agents.SARSALambdaAgent import SARSALambdaAgent
+from agents.SARSAAgent import SARSAAgent
+from agents.ExpectedSARSAAgent import ExpectedSARSAAgent
+
 from labyrinthMAP import LabyrinthMap
 from tqdm import trange
 import matplotlib.pyplot as plt
 
+#%% Create agent
+def create_agent(agent_type, alpha, epsilon, discount, legal_actions):
+    match agent_type:
+        case 'QLearning':
+            return QLearningAgent(alpha=alpha, epsilon=epsilon, discount=discount,
+                                  get_legal_actions=legal_actions)
+        case 'DQLearning':
+            return DQLearningAgent(alpha=alpha, epsilon=epsilon, discount=discount,
+                                   get_legal_actions=legal_actions)
+        case 'SARSALambda':
+            return SARSALambdaAgent(alpha=alpha, epsilon=epsilon, discount=discount,
+                                    get_legal_actions=legal_actions, lambda_value=0.9)
+        case 'SARSA':
+            return SARSAAgent(alpha=alpha, epsilon=epsilon, discount=discount,
+                              get_legal_actions=legal_actions)
+        case 'ExpectedSARSA':
+            return ExpectedSARSAAgent(alpha=alpha, epsilon=epsilon, discount=discount,
+                                      get_legal_actions=legal_actions)
+        case _:
+            return QLearningAgent(alpha=alpha, epsilon=epsilon, discount=discount,
+                                  get_legal_actions=legal_actions)
+
 #%% Training Function
-def training(num_agents):
+def training(agents_name):
+    num_agents = len(agents_name)
     env = LabyrinthMap(num_agents)
 
     max_tests = 400
@@ -17,8 +45,7 @@ def training(num_agents):
 
     for _ in trange(max_tests):
         eps -= 0.002
-        agents = [QLearningAgent(alpha=lr, epsilon=eps, discount=discount,
-                           get_legal_actions=env.get_possible_actions) for _ in range(num_agents)]
+        agents = [create_agent(name, lr, eps, discount, env.get_possible_actions) for name in agents_name]
         rewards = [0 for _ in range(num_agents)]
         for _ in range(n_eps):
             env.reset()
@@ -69,7 +96,14 @@ def show_game(num_agents=2):
 
 #%% Run Game
 if __name__ == "__main__":
-    training(num_agents=2)
+    available_agents = ['QLearning', 'DQLearning', 'SARSALambda', 'SARSA', 'ExpectedSARSA']
+    agent_pairs = [(a, b) for a in available_agents for b in available_agents]
 
-    show_game(num_agents=2)
+    for agents_name in agent_pairs:
+        print(f"Training agents: {agents_name}")
+        training(agents_name)
+    
+    # training(num_agents=2)
+
+    # show_game(num_agents=2)
 
