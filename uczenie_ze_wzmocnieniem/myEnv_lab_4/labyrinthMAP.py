@@ -1,4 +1,6 @@
 import random
+import os
+import time
 
 LEFT = 0
 DOWN = 1
@@ -6,16 +8,16 @@ RIGHT = 2
 UP = 3
 
 MAP = [
-    "ERRRWWWWWE",
-    "WWWRRWWWRR",
-    "RWWRRWWWRW",
-    "RRWRRWRRWR",
-    "WRWRRWWRRW",
-    "RRRRWWWRRR",
-    "WRWWWWWWRW",
-    "RRWRRWRRWR",
-    "WRWRRWWWRR",
-    "ERWWRWWWWE"
+    "ERRRWRRRRE",
+    "WRRWRWWRWW",
+    "WRWWRRRRWW",
+    "RRRWRRWRRR",
+    "RRRRRRRRRR",
+    "WRWRRRRWRW",
+    "WRRWRRWRRW",
+    "WRWWRWRRWW",
+    "WRRWRWWRWW",
+    "ERRRRWRRRE"
 ]
 
 WIDTH = len(MAP[0])
@@ -141,3 +143,51 @@ class LabyrinthMap:
             reward += COLLISION_PENALTY
 
         return agent.get_current_state(), reward, False
+
+    def show_map(self, clear=True, delay=0.5):
+        if clear:
+            os.system('cls')
+
+        RESET = "\x1b[0m"
+        GREEN = "\x1b[32;1m"
+        RED = "\x1b[31;1m"
+        WHITE = "\x1b[37;1m"
+
+        base = []
+        for y in range(HEIGHT):
+            row = []
+            for x in range(WIDTH):
+                ch = MAP[y][x]
+                row.append('#' if ch == 'W' else ' ')
+            base.append(row)
+
+        padded = []
+        border_row = ['#'] * (WIDTH + 2)
+        padded.append(border_row[:])
+        for y in range(HEIGHT):
+            padded.append(['#'] + base[y] + ['#'])
+        padded.append(border_row[:])
+
+        for idx, agent in enumerate(self._agents, start=1):
+            ax, ay = agent.get_current_state().get_position()
+            px, py = ax + 1, ay + 1
+            padded[py][px] = str(idx)
+
+        gx, gy = self._goal_state.get_position()
+        padded[gy + 1][gx + 1] = 'G'
+
+        for row in padded:
+            line_parts = []
+            for ch in row:
+                if ch == '#':
+                    line_parts.append(f"{WHITE}#{RESET}")
+                elif ch == 'G':
+                    line_parts.append(f"{RED}G{RESET}")
+                elif ch.isdigit():
+                    line_parts.append(f"{GREEN}{ch}{RESET}")
+                else:
+                    line_parts.append(' ')
+            print(''.join(line_parts), flush=True)
+
+        if delay and delay > 0:
+            time.sleep(delay)
