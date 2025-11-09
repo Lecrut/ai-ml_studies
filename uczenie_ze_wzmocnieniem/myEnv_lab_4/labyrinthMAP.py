@@ -126,7 +126,7 @@ class LabyrinthMap:
         cur = agent.get_current_state()
 
         candidates = self.get_next_states(cur, action)
-        next_state = candidates[0] if candidates else cur  # brak ruchu jeśli ściana/poza mapą
+        next_state = candidates[0] if candidates else cur 
 
         reward = self.get_reward(cur, action, next_state)
         agent.set_state(next_state)
