@@ -166,4 +166,15 @@ class ExpectedSARSAAgent:
         """
         self.epsilon = 0
         self.alpha = 0
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['get_legal_actions'] = None
+        state['_qvalues'] = {k: dict(v) for k, v in self._qvalues.items()}
+        return state
     
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._qvalues = defaultdict(lambda: defaultdict(lambda: 0))
+        for k, v in state['_qvalues'].items():
+            self._qvalues[k].update(v)

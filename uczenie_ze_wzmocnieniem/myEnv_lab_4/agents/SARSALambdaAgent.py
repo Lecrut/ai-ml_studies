@@ -168,3 +168,19 @@ class SARSALambdaAgent:
     def display_qvalues(self):
         for s in self._qvalues:
             print("State: " + str(s) + " " + str(self._qvalues[s]))
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['get_legal_actions'] = None
+        state['_qvalues'] = {k: dict(v) for k, v in self._qvalues.items()}
+        state['_evalues'] = {k: dict(v) for k, v in self._evalues.items()}
+        return state
+    
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._qvalues = defaultdict(lambda: defaultdict(lambda: 0))
+        self._evalues = defaultdict(lambda: defaultdict(lambda: 0))
+        for k, v in state['_qvalues'].items():
+            self._qvalues[k].update(v)
+        for k, v in state['_evalues'].items():
+            self._evalues[k].update(v)

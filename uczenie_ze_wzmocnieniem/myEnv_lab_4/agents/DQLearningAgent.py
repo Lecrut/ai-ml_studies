@@ -119,3 +119,19 @@ class DQLearningAgent:
     def turn_off_learning(self):
         self.epsilon = 0
         self.alpha = 0
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['get_legal_actions'] = None
+        state['_qvaluesA'] = {k: dict(v) for k, v in self._qvaluesA.items()}
+        state['_qvaluesB'] = {k: dict(v) for k, v in self._qvaluesB.items()}
+        return state
+    
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._qvaluesA = defaultdict(lambda: defaultdict(lambda: 0))
+        self._qvaluesB = defaultdict(lambda: defaultdict(lambda: 0))
+        for k, v in state['_qvaluesA'].items():
+            self._qvaluesA[k].update(v)
+        for k, v in state['_qvaluesB'].items():
+            self._qvaluesB[k].update(v)
