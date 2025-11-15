@@ -61,19 +61,16 @@ def create_agent(agent_type, alpha, epsilon, discount, legal_actions):
                                   get_legal_actions=legal_actions)
 
 #%% Training Function
-def training(agents_name, is_show_plots=False):
+def training(agents_name, is_show_plots=True, max_tests=400, n_eps=300):
     num_agents = len(agents_name)
     env = LabyrinthMap(num_agents)
-
-    max_tests = 400
-    n_eps = 300
     eps = 0.9
     lr = 0.1
     discount = 0.9
     best_agents_rewards = []
 
     for _ in trange(max_tests):
-        eps -= 0.002
+        eps -= 0.8 / max_tests
         # agents = [create_agent(name, lr, eps, discount, env.get_possible_actions) for name in agents_name]
         agents = []
         for name in agents_name:
@@ -149,6 +146,12 @@ if __name__ == "__main__":
 
     # for agents_name in agent_pairs:
     #     print(f"Training agents: {agents_name}")
-    #     training(agents_name)
+    #     training(agents_name, is_show_plots=False, max_tests=5, n_eps=20)
+
+
+    # for i in range(50):
+    #     agents_name = random.choice(agent_pairs)
+    #     print(f"Training agents: {agents_name}")
+    #     training(agents_name, is_show_plots=False, max_tests=10, n_eps=100)
 
     show_game(random.choice(agent_pairs))

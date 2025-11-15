@@ -8,17 +8,18 @@ RIGHT = 2
 UP = 3
 
 MAP = [
-    "ERRRWRRRRE",
-    "WRRWRWWRWW",
-    "WRWWRRRRWW",
-    "RRRWRRWRRR",
-    "RRRRRRRRRR",
-    "WRWRRRRWRW",
-    "WRRWRRWRRW",
-    "WRWWRWRRWW",
-    "WRRWRWWRWW",
-    "ERRRRWRRRE"
+    "REEERWRRRRR",
+    "RRRRRRRWRWW",
+    "RWRWRRWRRRR",
+    "WRRRWRWWRWR",
+    "RRWWRRRRRWR",
+    "WRWRRWRWWRW",
+    "WRRRRWRRWRR",
+    "RRWRRWWRRRW",
+    "RWRWRWRRRWR",
+    "RWRRRRRWRRG"
 ]
+
 
 WIDTH = len(MAP[0])
 HEIGHT = len(MAP)
@@ -29,13 +30,20 @@ COLLISION_PENALTY = -0.5
 
 def get_entrances(num_agents): 
     entrances = []
-    for y in [0, HEIGHT - 1]:
-        for x in [0, WIDTH - 1]:
+    for y in range(HEIGHT):
+        for x in range(WIDTH):
             if MAP[y][x] == 'E':
                 entrances.append((x, y))
 
-    n_agents = max(2, min(num_agents + 1, len(entrances) - 1))
+    n_agents = max(2, min(num_agents, len(entrances)))
     return random.sample(entrances, n_agents)
+
+def get_goal_position():
+    for y in range(HEIGHT):
+        for x in range(WIDTH):
+            if MAP[y][x] == 'G':
+                return (x, y)
+    return None
 
 def is_walkable(x, y):
     if 0 <= x < WIDTH and 0 <= y < HEIGHT:
@@ -75,17 +83,17 @@ class LabyrinthMap:
                     index = y * WIDTH + x
                     self._states.append(State(index, x, y))
         self._agents = []
-        self._goal_state = None
+
+        x_goal, y_goal = get_goal_position()
+        index_goal = y_goal * WIDTH + x_goal
+        self._goal_state = next(state for state in self._states if state._index == index_goal)
+
         entrances = get_entrances(num_agents)
         for i, entrance in enumerate(entrances):
             x, y = entrance
             index = y * WIDTH + x
             start_state = next(state for state in self._states if state._index == index)
-            if i == len(entrances) - 1:
-                self._goal_state = start_state
-            else:
-                self._agents.append(Agent(start_state))
-
+            self._agents.append(Agent(start_state))
 
     def reset(self):
         for agent in self._agents:
@@ -144,7 +152,7 @@ class LabyrinthMap:
 
         return agent.get_current_state(), reward, False
 
-    def show_map(self, clear=True, delay=0.5):
+    def show_map(self, clear=True, delay=0.1):
         if clear:
             os.system('cls')
 
