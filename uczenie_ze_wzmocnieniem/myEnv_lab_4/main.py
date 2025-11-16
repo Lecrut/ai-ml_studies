@@ -80,10 +80,10 @@ def training(agents_name, is_show_plots=True, max_tests=400, n_eps=300):
             else:
                 agents.append(create_agent(name, lr, eps, discount, env.get_possible_actions))
 
-        rewards = [0 for _ in range(num_agents)]
         for _ in range(n_eps):
             env.reset()
             done = [False for _ in range(num_agents)]
+            rewards = [0 for _ in range(num_agents)]
             while not any(done):
                 for i, agent in enumerate(agents):
                     if done[i]:
@@ -144,14 +144,14 @@ if __name__ == "__main__":
     available_agents = ['QLearning', 'DQLearning', 'SARSALambda', 'SARSA', 'ExpectedSARSA']
     agent_pairs = [(a, b) for a in available_agents for b in available_agents]
 
-    # for agents_name in agent_pairs:
-    #     print(f"Training agents: {agents_name}")
-    #     training(agents_name, is_show_plots=False, max_tests=5, n_eps=20)
+    for agents_name in agent_pairs:
+        print(f"Training agents: {agents_name}")
+        training(agents_name, is_show_plots=False, max_tests=5, n_eps=20)
 
 
-    # for i in range(50):
-    #     agents_name = random.choice(agent_pairs)
-    #     print(f"Training agents: {agents_name}")
-    #     training(agents_name, is_show_plots=False, max_tests=10, n_eps=100)
+    for i in range(50):
+        agents_name = random.choice(agent_pairs)
+        print(f"Training agents: {agents_name}")
+        training(agents_name, is_show_plots=False, max_tests=10, n_eps=100)
 
     show_game(random.choice(agent_pairs))
