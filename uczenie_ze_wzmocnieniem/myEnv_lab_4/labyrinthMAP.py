@@ -24,9 +24,9 @@ MAP = [
 WIDTH = len(MAP[0])
 HEIGHT = len(MAP)
 
-STEP_REWARD = -0.05
-GOAL_REWARD = 1.0
-COLLISION_PENALTY = -0.5
+STEP_REWARD = -0.5
+GOAL_REWARD = 100.0
+COLLISION_PENALTY = -5.0
 
 def get_entrances(num_agents): 
     entrances = []
@@ -58,6 +58,17 @@ class State:
     
     def get_position(self):
         return self._x, self._y
+    
+    def __hash__(self):
+        return hash((self._x, self._y))
+    
+    def __eq__(self, other):
+        if not isinstance(other, State):
+            return False
+        return self._x == other._x and self._y == other._y
+    
+    def __repr__(self):
+        return f"State({self._x}, {self._y})"
     
 class Agent:
     def __init__(self, start_state):
