@@ -158,15 +158,16 @@ def show_game(agents_name, is_show_map=True):
 
 #%% Run Game
 if __name__ == "__main__":
-    available_agents = ['QLearning', 'DQLearning', 'SARSALambda', 'SARSA', 'ExpectedSARSA']
+    # available_agents = ['QLearning', 'DQLearning', 'SARSALambda', 'SARSA', 'ExpectedSARSA']
+    available_agents = ['DQLearning', 'QLearning']
     agent_pairs = [(a, b) for a in available_agents for b in available_agents]
 
-    # for _ in range(4):
-    #     pairs = agent_pairs.copy()
-    #     random.shuffle(pairs)
-    #     for agents_name in pairs:
-    #         print(f"Training agents: {agents_name}")
-    #         training(agents_name, is_show_plots=False, max_tests=20, n_eps=100)
+    for _ in range(1):
+        pairs = agent_pairs.copy()
+        random.shuffle(pairs)
+        for agents_name in pairs:
+            print(f"Training agents: {agents_name}")
+            training(agents_name, is_show_plots=False, max_tests=10, n_eps=100)
 
     for agents_name in agent_pairs:
         show_game(agents_name, is_show_map=False)

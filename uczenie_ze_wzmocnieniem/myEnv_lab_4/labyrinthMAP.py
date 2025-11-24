@@ -50,6 +50,11 @@ def is_walkable(x, y):
         return MAP[y][x] != 'W'
     return False
 
+def get_distance(state1, state2):
+    x1, y1 = state1.get_position()
+    x2, y2 = state2.get_position()
+    return abs(x1 - x2) + abs(y1 - y2)
+
 class State: 
     def __init__(self, index, x, y):
         self._index = index
@@ -71,18 +76,28 @@ class State:
         return f"State({self._x}, {self._y})"
     
 class Agent:
-    def __init__(self, start_state):
+    def __init__(self, start_state, index):
         self._start_state = start_state
         self._current_state = start_state
+        self._index = index
+        self._distances = (0, 0)
 
     def get_current_state(self):
+        return (self._current_state, self._distances)
+    
+    def get_current_position(self):
         return self._current_state
     
-    def set_state(self, state):
+    def set_state(self, state, distances):
+        self._distances = tuple(distances) if isinstance(distances, list) else distances
         self._current_state = state
     
     def reset(self):
         self._current_state = self._start_state
+        self._distances = (0, 0)
+
+    def __hash__(self):
+        return hash((self._current_state, self._distances))
 
 class LabyrinthMap:
     def __init__(self, num_agents):
@@ -104,7 +119,7 @@ class LabyrinthMap:
             x, y = entrance
             index = y * WIDTH + x
             start_state = next(state for state in self._states if state._index == index)
-            self._agents.append(Agent(start_state))
+            self._agents.append(Agent(start_state, i))
 
     def reset(self):
         for agent in self._agents:
@@ -117,7 +132,8 @@ class LabyrinthMap:
         return state == self._goal_state
 
     def get_next_states(self, state, action):
-        x, y = state.get_position()
+        position, _ = state
+        x, y = position.get_position()
         if action == LEFT:
             x -= 1
         elif action == DOWN:
@@ -145,19 +161,27 @@ class LabyrinthMap:
         cur = agent.get_current_state()
 
         candidates = self.get_next_states(cur, action)
-        next_state = candidates[0] if candidates else cur 
+        next_state = candidates[0] if candidates else cur[0] 
 
         reward = self.get_reward(cur, action, next_state)
-        agent.set_state(next_state)
+
+        agent_distances = []
+        for other_agent in self._agents:
+            if other_agent == agent:
+                continue
+            dist = get_distance(next_state, other_agent.get_current_position())
+            agent_distances.append(dist)
+
+        agent.set_state(next_state, agent_distances)
 
         if self.is_terminal(next_state):
             return next_state, GOAL_REWARD, True
 
-        positions = [ag.get_current_state().get_position() for ag in self._agents]
+        positions = [ag.get_current_position().get_position() for ag in self._agents]
         if len(positions) != len(set(positions)):
             collided_positions = {p for p in positions if positions.count(p) > 1}
             for ag in self._agents:
-                if ag.get_current_state().get_position() in collided_positions:
+                if ag.get_current_position().get_position() in collided_positions:
                     ag.reset()
             reward += COLLISION_PENALTY
 
