@@ -80,11 +80,15 @@ def training(agents_name, is_show_plots=True, max_tests=400, n_eps=300):
 
     for _ in trange(max_tests):
         eps -= (eps / 2 + 0.1) / max_tests
-        for _ in range(n_eps):
+        for _ in trange(n_eps):
             env.reset()
             done = [False for _ in range(num_agents)]
             rewards = [0 for _ in range(num_agents)]
+            count_steps = 0
             while not any(done):
+                count_steps += 1
+                if count_steps > 5000:
+                    break
                 for i, agent in enumerate(agents):
                     if done[i]:
                         continue
@@ -158,16 +162,15 @@ def show_game(agents_name, is_show_map=True):
 
 #%% Run Game
 if __name__ == "__main__":
-    # available_agents = ['QLearning', 'DQLearning', 'SARSALambda', 'SARSA', 'ExpectedSARSA']
-    available_agents = ['DQLearning', 'QLearning']
+    available_agents = ['QLearning', 'DQLearning', 'SARSALambda', 'SARSA', 'ExpectedSARSA']
     agent_pairs = [(a, b) for a in available_agents for b in available_agents]
 
-    for _ in range(1):
+    for _ in range(2):
         pairs = agent_pairs.copy()
         random.shuffle(pairs)
         for agents_name in pairs:
             print(f"Training agents: {agents_name}")
-            training(agents_name, is_show_plots=False, max_tests=10, n_eps=100)
+            training(agents_name, is_show_plots=False, max_tests=30, n_eps=300)
 
     for agents_name in agent_pairs:
         show_game(agents_name, is_show_map=False)
