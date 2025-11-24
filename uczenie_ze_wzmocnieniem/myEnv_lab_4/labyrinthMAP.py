@@ -50,11 +50,6 @@ def is_walkable(x, y):
         return MAP[y][x] != 'W'
     return False
 
-def get_distance(state1, state2):
-    x1, y1 = state1.get_position()
-    x2, y2 = state2.get_position()
-    return abs(x1 - x2) + abs(y1 - y2)
-
 class State: 
     def __init__(self, index, x, y):
         self._index = index
@@ -80,24 +75,24 @@ class Agent:
         self._start_state = start_state
         self._current_state = start_state
         self._index = index
-        self._distances = (0, 0)
+        self._positions = ()
 
     def get_current_state(self):
-        return (self._current_state, self._distances)
+        return (self._current_state, self._positions)
     
     def get_current_position(self):
         return self._current_state
     
-    def set_state(self, state, distances):
-        self._distances = tuple(distances) if isinstance(distances, list) else distances
+    def set_state(self, state, positions):
+        self._positions = tuple(positions)
         self._current_state = state
     
     def reset(self):
         self._current_state = self._start_state
-        self._distances = (0, 0)
+        self._positions = ()
 
     def __hash__(self):
-        return hash((self._current_state, self._distances))
+        return hash((self._current_state, self._positions))
 
 class LabyrinthMap:
     def __init__(self, num_agents):
@@ -165,14 +160,13 @@ class LabyrinthMap:
 
         reward = self.get_reward(cur, action, next_state)
 
-        agent_distances = []
+        agents_positions = []
         for other_agent in self._agents:
             if other_agent == agent:
                 continue
-            dist = get_distance(next_state, other_agent.get_current_position())
-            agent_distances.append(dist)
+            agents_positions.append(other_agent.get_current_position().get_position())
 
-        agent.set_state(next_state, agent_distances)
+        agent.set_state(next_state, agents_positions)
 
         if self.is_terminal(next_state):
             return next_state, GOAL_REWARD, True
