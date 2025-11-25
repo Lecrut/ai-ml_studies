@@ -1,6 +1,7 @@
 import random
 import os
 import time
+import itertools
 
 LEFT = 0
 DOWN = 1
@@ -19,7 +20,7 @@ MAP = [
     "RWRWRWRRRWR",
     "RWRRRRRWRRG"
 ]
-
+# MAP = ['EEE', 'RWR', 'RGR']
 
 WIDTH = len(MAP[0])
 HEIGHT = len(MAP)
@@ -35,8 +36,18 @@ def get_entrances(num_agents):
             if MAP[y][x] == 'E':
                 entrances.append((x, y))
 
-    n_agents = max(2, min(num_agents, len(entrances)))
+    n_agents = max(1, min(num_agents, len(entrances)))
     return random.sample(entrances, n_agents)
+
+def build_tuples(entrances):
+    entrance_tuples = []
+    for entrance in entrances:
+        x, y = entrance
+        index = y * WIDTH + x
+        
+        start_state = next(state for state in self._states if state._index == index)
+        entrance_tuples.append((start_state, x, y))
+    return entrance_tuples
 
 def get_goal_position():
     for y in range(HEIGHT):
@@ -110,24 +121,29 @@ class LabyrinthMap:
         self._goal_state = next(state for state in self._states if state._index == index_goal)
 
         entrances = get_entrances(num_agents)
-        for i, entrance in enumerate(entrances):
-            x, y = entrance
-            index = y * WIDTH + x
-            start_state = next(state for state in self._states if state._index == index)
-            self._agents.append(Agent(start_state, i))
+        entrance_tuples = build_tuples(entrances)
+        for i, entrance in enumerate(entrance_tuples):
+            self._agents.append(Agent(entrance, i))
 
     def reset(self):
         for agent in self._agents:
             agent.reset()
 
     def get_all_states(self):
-        return self._states
+        available_states = list(itertools.product(self._states, repeat=self._num_agents))
+        return available_states
 
     def is_terminal(self, state):
         return state == self._goal_state
+    
+    def get_next_move(self, agent_idx, policy):
+        agent = self._agents[agent_idx]
+        current_state = agent.get_current_state()
+        action = policy[current_state]
+        return action
 
     def get_next_states(self, state, action):
-        position, _ = state
+        position = state[0]
         x, y = position.get_position()
         if action == LEFT:
             x -= 1
@@ -142,7 +158,7 @@ class LabyrinthMap:
             next_state = next((s for s in self._states if s.get_position() == (x, y)), None)
             return [next_state] if next_state else []
         return []
-
+    
     def get_possible_actions(self, state):
         return [LEFT, DOWN, RIGHT, UP]
 
@@ -206,7 +222,7 @@ class LabyrinthMap:
         padded.append(border_row[:])
 
         for idx, agent in enumerate(self._agents, start=1):
-            ax, ay = agent.get_current_state().get_position()
+            ax, ay = agent.get_current_position().get_position()
             px, py = ax + 1, ay + 1
             padded[py][px] = str(idx)
 

@@ -176,3 +176,4 @@ if __name__ == "__main__":
         show_game(agents_name, is_show_map=False)
 
     # show_game(random.choice(agent_pairs))
+    # show_game(('QLearning',))
