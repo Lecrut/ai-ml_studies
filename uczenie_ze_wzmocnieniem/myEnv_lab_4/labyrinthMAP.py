@@ -8,19 +8,19 @@ DOWN = 1
 RIGHT = 2
 UP = 3
 
-MAP = [
-    "REEERWRRRRR",
-    "RRRRRRRWRWW",
-    "RWRWRRWRRRR",
-    "WRRRWRWWRWR",
-    "RRWWRRRRRWR",
-    "WRWRRWRWWRW",
-    "WRRRRWRRWRR",
-    "RRWRRWWRRRW",
-    "RWRWRWRRRWR",
-    "RWRRRRRWRRG"
-]
-# MAP = ['EEE', 'RWR', 'RGR']
+# MAP = [
+#     "REEERWRRRRR",
+#     "RRRRRRRWRWW",
+#     "RWRWRRWRRRR",
+#     "WRRRWRWWRWR",
+#     "RRWWRRRRRWR",
+#     "WRWRRWRWWRW",
+#     "WRRRRWRRWRR",
+#     "RRWRRWWRRRW",
+#     "RWRWRWRRRWR",
+#     "RWRRRRRWRRG"
+# ]
+MAP = ['EEE', 'RWR', 'RGR']
 
 WIDTH = len(MAP[0])
 HEIGHT = len(MAP)
@@ -38,16 +38,6 @@ def get_entrances(num_agents):
 
     n_agents = max(1, min(num_agents, len(entrances)))
     return random.sample(entrances, n_agents)
-
-def build_tuples(entrances):
-    entrance_tuples = []
-    for entrance in entrances:
-        x, y = entrance
-        index = y * WIDTH + x
-        
-        start_state = next(state for state in self._states if state._index == index)
-        entrance_tuples.append((start_state, x, y))
-    return entrance_tuples
 
 def get_goal_position():
     for y in range(HEIGHT):
@@ -81,29 +71,48 @@ class State:
     def __repr__(self):
         return f"State({self._x}, {self._y})"
     
+# ...existing code...
 class Agent:
-    def __init__(self, start_state, index):
+    def __init__(self, start_state, index, positions=()):
         self._start_state = start_state
         self._current_state = start_state
         self._index = index
-        self._positions = ()
+        self._start_positions = tuple(positions) if positions is not None else ()
+        self._positions = tuple(positions) if positions is not None else ()
 
     def get_current_state(self):
-        return (self._current_state, self._positions)
+        results = [self._current_state] + list(self._positions)
+        state_results = []
+        for res in results: 
+            if isinstance(res, State):
+                state_results.append(res)
+                continue
+            x, y = res
+            index = y * WIDTH + x
+            state_results.append(State(index, x, y))
+
+        return tuple(state_results)
     
     def get_current_position(self):
         return self._current_state
     
     def set_state(self, state, positions):
-        self._positions = tuple(positions)
-        self._current_state = state
+        self._positions = tuple(positions) if positions is not None else ()
+        self._current_state = state[0]
     
     def reset(self):
         self._current_state = self._start_state
-        self._positions = ()
+        self._positions = self._start_positions
 
     def __hash__(self):
         return hash((self._current_state, self._positions))
+
+    def __eq__(self, other):
+        if not isinstance(other, Agent):
+            return False
+        return (self._current_state == other._current_state and
+                self._positions == other._positions and
+                self._index == other._index)
 
 class LabyrinthMap:
     def __init__(self, num_agents):
@@ -121,9 +130,12 @@ class LabyrinthMap:
         self._goal_state = next(state for state in self._states if state._index == index_goal)
 
         entrances = get_entrances(num_agents)
-        entrance_tuples = build_tuples(entrances)
-        for i, entrance in enumerate(entrance_tuples):
-            self._agents.append(Agent(entrance, i))
+        for i, entrance in enumerate(entrances):
+            x, y = entrance
+            index = y * WIDTH + x
+            start_state = next(state for state in self._states if state._index == index)
+            other_positions = [e for j, e in enumerate(entrances) if j != i]
+            self._agents.append(Agent(start_state, i, other_positions))
 
     def reset(self):
         for agent in self._agents:
@@ -156,9 +168,28 @@ class LabyrinthMap:
 
         if is_walkable(x, y):
             next_state = next((s for s in self._states if s.get_position() == (x, y)), None)
-            return [next_state] if next_state else []
-        return []
+            return [(next_state,) + state[1:]]
+        return [state] 
     
+    def get_only_possible_actions(self, state):
+        agent_pos = state[0]
+        x, y = agent_pos.get_position()
+        actions = []
+
+        if is_walkable(x-1, y):
+            actions.append(LEFT)
+        if is_walkable(x+1, y):
+            actions.append(RIGHT)
+        if is_walkable(x, y-1):
+            actions.append(UP)
+        if is_walkable(x, y+1):
+            actions.append(DOWN)
+
+        if not actions:
+            actions.append(None) 
+
+        return actions
+        
     def get_possible_actions(self, state):
         return [LEFT, DOWN, RIGHT, UP]
 

@@ -165,15 +165,15 @@ if __name__ == "__main__":
     available_agents = ['QLearning', 'DQLearning', 'SARSALambda', 'SARSA', 'ExpectedSARSA']
     agent_pairs = [(a, b) for a in available_agents for b in available_agents]
 
-    for _ in range(2):
-        pairs = agent_pairs.copy()
-        random.shuffle(pairs)
-        for agents_name in pairs:
-            print(f"Training agents: {agents_name}")
-            training(agents_name, is_show_plots=False, max_tests=30, n_eps=300)
+    # for _ in range(2):
+    #     pairs = agent_pairs.copy()
+    #     random.shuffle(pairs)
+    #     for agents_name in pairs:
+    #         print(f"Training agents: {agents_name}")
+    #         training(agents_name, is_show_plots=False, max_tests=30, n_eps=300)
 
     for agents_name in agent_pairs:
         show_game(agents_name, is_show_map=False)
 
-    # show_game(random.choice(agent_pairs))
+    show_game(random.choice(agent_pairs))
     # show_game(('QLearning',))
