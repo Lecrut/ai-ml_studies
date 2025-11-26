@@ -29,14 +29,14 @@ def value_iteration(mdp, gamma, theta):
             best_value = None
             best_action = None
 
-            for a in mdp.get_only_possible_actions(s):
+            for a in mdp.get_possible_actions(s):
                 raw_next = mdp.get_next_states(s, a)
                 next_items = []
                 if isinstance(raw_next, dict):
                     next_items = list(raw_next.items())
-                elif isinstance(raw_next, list) or isinstance(raw_next, tuple):
+                elif isinstance(raw_next, (list, tuple)):
                     if len(raw_next) == 0:
-                        next_items = [(s[0], 1.0)]
+                        next_items = [(s, 1.0)]   
                     else:
                         prob = 1.0 / len(raw_next)
                         next_items = [(ns, prob) for ns in raw_next]
@@ -73,7 +73,7 @@ def show_game(env, policy, V, is_show_map=True):
     rewards = [0 for _ in range(env._num_agents)]
     steps = 0
 
-    while not any(done) and steps < 200:
+    while not any(done) and steps < 10000:
         steps += 1
         for i, agent in enumerate(env._agents):
             if done[i]:
@@ -101,7 +101,7 @@ def show_game(env, policy, V, is_show_map=True):
 
 #%% Play game
 if __name__ == "__main__":
-    env = LabyrinthMap(1)
+    env = LabyrinthMap(2)
 
     states = env.get_all_states()
     # print('States:', states)
@@ -109,7 +109,7 @@ if __name__ == "__main__":
     # print_states_and_transitions(env, states)
 
     gamma = 0.9
-    theta = 0.1
+    theta = 0.001
     policy, V = value_iteration(env, gamma, theta)
 
     show_game(env, policy, V, is_show_map=True)

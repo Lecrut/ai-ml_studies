@@ -8,19 +8,19 @@ DOWN = 1
 RIGHT = 2
 UP = 3
 
-# MAP = [
-#     "REEERWRRRRR",
-#     "RRRRRRRWRWW",
-#     "RWRWRRWRRRR",
-#     "WRRRWRWWRWR",
-#     "RRWWRRRRRWR",
-#     "WRWRRWRWWRW",
-#     "WRRRRWRRWRR",
-#     "RRWRRWWRRRW",
-#     "RWRWRWRRRWR",
-#     "RWRRRRRWRRG"
-# ]
-MAP = ['EEE', 'RWR', 'RGR']
+MAP = [
+    "REEERWRRRRR",
+    "RRRRRRRWRWW",
+    "RWRWRRWRRRR",
+    "WRRRWRWWRWR",
+    "RRWWRRRRRWR",
+    "WRWRRWRWWRW",
+    "WRRRRWRRWRR",
+    "RRWRRWWRRRW",
+    "RWRWRWRRRWR",
+    "RWRRRRRWRRG"
+]
+# MAP = ['EEE', 'RWR', 'RGR']
 
 WIDTH = len(MAP[0])
 HEIGHT = len(MAP)
@@ -144,9 +144,6 @@ class LabyrinthMap:
     def get_all_states(self):
         available_states = list(itertools.product(self._states, repeat=self._num_agents))
         return available_states
-
-    def is_terminal(self, state):
-        return state == self._goal_state
     
     def get_next_move(self, agent_idx, policy):
         agent = self._agents[agent_idx]
@@ -193,8 +190,14 @@ class LabyrinthMap:
     def get_possible_actions(self, state):
         return [LEFT, DOWN, RIGHT, UP]
 
+    def is_terminal(self, state):
+        if isinstance(state, (tuple, list)):
+            return state[0] == self._goal_state
+        return state == self._goal_state
+
     def get_reward(self, state, action, next_state):
-        if next_state == self._goal_state:
+        ns = next_state[0] if isinstance(next_state, (tuple, list)) else next_state
+        if ns == self._goal_state:
             return GOAL_REWARD
         return STEP_REWARD
 
@@ -207,13 +210,16 @@ class LabyrinthMap:
 
         reward = self.get_reward(cur, action, next_state)
 
-        agents_positions = []
-        for other_agent in self._agents:
-            if other_agent == agent:
-                continue
-            agents_positions.append(other_agent.get_current_position().get_position())
-
-        agent.set_state(next_state, agents_positions)
+        for updated_agent in self._agents:
+            agents_positions = []
+            for other_agent in self._agents:
+                if other_agent == updated_agent:
+                    continue
+                agents_positions.append(other_agent.get_current_position().get_position())
+            if agent == updated_agent:
+                agent.set_state(next_state, agents_positions)
+            else:
+                updated_agent.set_state(updated_agent.get_current_state(), agents_positions)
 
         if self.is_terminal(next_state):
             return next_state, GOAL_REWARD, True

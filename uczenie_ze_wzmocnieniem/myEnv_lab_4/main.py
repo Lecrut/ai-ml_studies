@@ -12,9 +12,9 @@ import pickle
 import os
 
 #%% Save and Load Functions
-def load_agent(agent_name, legal_actions=None):
+def load_agent(agent_name, num_agents, legal_actions=None):
     try: 
-        with open(f"records/{agent_name}.pkl", "rb") as f:
+        with open(f"records/{num_agents}/{agent_name}.pkl", "rb") as f:
             agent, score = pickle.load(f)
         if legal_actions is not None:
             agent.get_legal_actions = legal_actions
@@ -25,14 +25,14 @@ def load_agent(agent_name, legal_actions=None):
         return None, float('-inf')
 
 
-def save_agent(agent, agent_name, score):
-    os.makedirs("records", exist_ok=True)
-    _, best_score = load_agent(agent_name)
+def save_agent(agent, num_agents, agent_name, score):
+    os.makedirs(f"records/{num_agents}", exist_ok=True)
+    _, best_score = load_agent(agent_name, num_agents)
 
     if score <= best_score:
         return
     try:
-        with open(f"records/{agent_name}.pkl", "wb") as f:
+        with open(f"records/{num_agents}/{agent_name}.pkl", "wb") as f:
             pickle.dump((agent, score), f)
     except Exception as e:
         print(f"Error saving agent {agent_name}: {e}")
@@ -72,7 +72,7 @@ def training(agents_name, is_show_plots=True, max_tests=400, n_eps=300):
     # agents = [create_agent(name, lr, eps, discount, env.get_possible_actions) for name in agents_name]
     agents = []
     for name in agents_name:
-        loaded_agent, _ = load_agent(name, env.get_possible_actions)
+        loaded_agent, _ = load_agent(name, num_agents, env.get_possible_actions)
         if loaded_agent:
             agents.append(loaded_agent)
         else:
@@ -101,7 +101,7 @@ def training(agents_name, is_show_plots=True, max_tests=400, n_eps=300):
                         done[i] = True
                         if rewards[i] > best_agents_rewards[i]:
                             best_agents_rewards[i] = rewards[i]
-                            save_agent(agent, agents_name[i], best_agents_rewards[i])
+                            save_agent(agent, num_agents, agents_name[i], best_agents_rewards[i])
                         break
 
 
@@ -127,7 +127,7 @@ def show_game(agents_name, is_show_map=True):
     # agents = [create_agent(name, alpha=0, epsilon=0, discount=1, legal_actions=env.get_possible_actions) for name in agents_name]
     agents = []
     for name in agents_name:
-        loaded_agent, _ = load_agent(name, env.get_possible_actions)
+        loaded_agent, _ = load_agent(name, num_agents, env.get_possible_actions)
         if loaded_agent:
             agents.append(loaded_agent)
         else:
@@ -159,21 +159,34 @@ def show_game(agents_name, is_show_map=True):
     if not any(done):
         print('None agent ended in less than 100000 steps.')
     
+#%% Training 
+def training_all(agents):
+    agent_pairs = [(a, b) for a in agents for b in agents]
+
+    for _ in range(2):
+        for agent_name in agents:
+            print(f"Training agents: {agent_name}")
+            training([agent_name], is_show_plots=False, max_tests=10, n_eps=100)
+
+    for _ in range(2):
+        pairs = agent_pairs.copy()
+        random.shuffle(pairs)
+        for agents_name in pairs:
+            print(f"Training agents: {agents_name}")
+            training(agents_name, is_show_plots=False, max_tests=10, n_eps=100)
 
 #%% Run Game
 if __name__ == "__main__":
-    available_agents = ['QLearning', 'DQLearning', 'SARSALambda', 'SARSA', 'ExpectedSARSA']
+    available_agents = ['QLearning', 'DQLearning', 'SARSA', 'ExpectedSARSA']  # 'SARSALambda'
     agent_pairs = [(a, b) for a in available_agents for b in available_agents]
 
-    # for _ in range(2):
-    #     pairs = agent_pairs.copy()
-    #     random.shuffle(pairs)
-    #     for agents_name in pairs:
-    #         print(f"Training agents: {agents_name}")
-    #         training(agents_name, is_show_plots=False, max_tests=30, n_eps=300)
+    training_all(available_agents)
+
+    for agent_name in available_agents:
+        show_game([agent_name], is_show_map=False)
 
     for agents_name in agent_pairs:
         show_game(agents_name, is_show_map=False)
 
-    show_game(random.choice(agent_pairs))
-    # show_game(('QLearning',))
+    # show_game(random.choice(agent_pairs))
+    # show_game(('DQLearning',))
