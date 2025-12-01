@@ -71,7 +71,6 @@ class State:
     def __repr__(self):
         return f"State({self._x}, {self._y})"
     
-# ...existing code...
 class Agent:
     def __init__(self, start_state, index, positions=()):
         self._start_state = start_state

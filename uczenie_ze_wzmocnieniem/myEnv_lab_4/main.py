@@ -180,13 +180,13 @@ if __name__ == "__main__":
     available_agents = ['QLearning', 'DQLearning', 'SARSA', 'ExpectedSARSA']  # 'SARSALambda'
     agent_pairs = [(a, b) for a in available_agents for b in available_agents]
 
-    training_all(available_agents)
+    # training_all(available_agents)
 
-    for agent_name in available_agents:
-        show_game([agent_name], is_show_map=False)
+    # for agent_name in available_agents:
+    #     show_game([agent_name], is_show_map=False)
 
-    for agents_name in agent_pairs:
-        show_game(agents_name, is_show_map=False)
+    # for agents_name in agent_pairs:
+    #     show_game(agents_name, is_show_map=False)
 
-    # show_game(random.choice(agent_pairs))
-    # show_game(('DQLearning',))
+    show_game(random.choice(agent_pairs))
+    # show_game(('QLearning',))
