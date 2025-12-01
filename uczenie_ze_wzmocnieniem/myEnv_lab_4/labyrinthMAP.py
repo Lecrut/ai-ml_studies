@@ -233,7 +233,7 @@ class LabyrinthMap:
 
         return agent.get_current_state(), reward, False
 
-    def show_map(self, clear=True, delay=0.1):
+    def show_map(self, clear=True, delay=0.1, number_of_moves=0):
         if clear:
             os.system('cls')
 
@@ -277,6 +277,9 @@ class LabyrinthMap:
                 else:
                     line_parts.append(' ')
             print(''.join(line_parts), flush=True)
+        
+        print('Num of agents:', self._num_agents)
+        print('Move number:', number_of_moves)
 
         if delay and delay > 0:
             time.sleep(delay)
