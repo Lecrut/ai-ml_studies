@@ -1,126 +1,131 @@
 #%% Imports 
-from labyrinthMAP import LabyrinthMap
 import random
 import math
+import copy
+from labyrinthMAP import LabyrinthMap
+
+#%% Manhattan distance to goal
+def dist_to_goal(state, env):
+    x, y = state[0].get_position()
+    gx, gy = env._goal_state.get_position()
+    return abs(x - gx) + abs(y - gy)
+
+#%% Check if game already won
+def game_already_won(env):
+    return any(env.is_terminal(ag.get_current_state()) for ag in env._agents)
+
+#%% Smart Rollout
+def smart_rollout(env, start_state, player_id):
+    sim = copy.deepcopy(env)
+    sim._agents[player_id]._current_state = start_state[0]
+
+    if game_already_won(sim):
+        return 1.0
+
+    steps = 0
+    while steps < 40:
+        state = sim._agents[player_id].get_current_state()
+        if sim.is_terminal(state):
+            return 1.0
+
+        actions = [a for a in sim.get_only_possible_actions(state) if a is not None]
+        if not actions:
+            break
+
+        best_action = min(actions, key=lambda a: dist_to_goal(sim.get_next_states(state, a)[0], sim))
+        action = best_action if random.random() < 0.95 else random.choice(actions)
+
+        sim.step(player_id, action)
+        steps += 1
+
+        if game_already_won(sim):
+            return 1.0
+
+    return max(0.0, 1.0 - dist_to_goal(sim._agents[player_id].get_current_state(), sim) / 30.0)
+
+#%% Monte Carlo Tree Search Agent
+class MonteCarloAgent:
+    def __init__(self, state, parent=None, action=None, player=None):
+        self.state = state
+        self.parent = parent
+        self.action = action
+        self.player = player
+        self.children = []
+        self.visits = 0
+        self.value = 0.0
+        self.untried = None
+
+    def best_child(self, c=0.4):
+        def score(ch):
+            if ch.visits == 0: return float('inf')
+            return ch.value / ch.visits + c * math.sqrt(math.log(self.visits + 1) / (ch.visits + 1))
+        return max(self.children, key=score)
+
+#%% MCTS Best Action
+def mcts_best_action(env, root_state, player, iterations=600):
+    root = MonteCarloAgent(root_state, player=player)
+    root.untried = [a for a in env.get_only_possible_actions(root_state) if a is not None]
+
+    for _ in range(iterations):
+        node = root
+        while not node.untried and node.children:
+            node = node.best_child(0.4)
+
+        if node.untried:
+            act = random.choice(node.untried)
+            node.untried.remove(act)
+            nxt = env.get_next_states(node.state, act)[0]
+            child = MonteCarloAgent(nxt, node, act, player)
+            child.untried = [a for a in env.get_only_possible_actions(nxt) if a is not None]
+            node.children.append(child)
+            node = child
+
+        val = smart_rollout(env, node.state, player)
+        while node:
+            node.visits += 1
+            node.value += val
+            node = node.parent
+
+    if not root.children:
+        valid = [a for a in env.get_only_possible_actions(root_state) if a is not None]
+        return random.choice(valid) if valid else None
+
+    return max(root.children, key=lambda c: c.value / c.visits if c.visits else 0).action
+
+#%% Policy function
+def policy(state, player_id):
+    return mcts_best_action(env, state, player_id, iterations=600)
 
 #%% Show game
-def show_game(env, policy, is_show_map=False):
+def show_game(env, policy, show_map=True):
     env.reset()
+    steps = 0
     done = [False for _ in range(env._num_agents)]
     rewards = [0 for _ in range(env._num_agents)]
-    steps = 0
 
-    while not any(done) and steps < 10000:
+    while not any(done) and steps < 1000:
         steps += 1
-        for i, agent in enumerate(env._agents):
-            if done[i]:
+
+        for i in range(env._num_agents):
+            if env.is_terminal(env._agents[i].get_current_state()):
                 continue
-
-            current_state = agent.get_current_state()
-            action = policy(current_state)
-
-            if not is_show_map:
-                print(f"Agent {i} at state {current_state} takes action {action}")
-
-            _, reward, terminal = env.step(i, action)
+            action = policy(env._agents[i].get_current_state(), i)
+            _, reward, terminal =env.step(i, action)
             rewards[i] += reward
 
-            if is_show_map:
+            if show_map:
                 env.show_map(number_of_moves=steps)
-
+            
             if terminal:
                 done[i] = True
                 print(f"Agent {i} finished with reward: {rewards[i]} in {steps} steps")
                 break
 
     if not any(done):
-        print('None agent ended in less than 10000 steps.')
-
-#%% Monte Carlo Tree Search Node
-class MonteCarloTreeSearchNode:
-    def __init__(self, state, parent=None, action=None):
-        self.state = state
-        self.parent = parent
-        self.action = action
-        self.children = []
-        self.visits = 0
-        self.value = 0.0
-        self.untried_actions = None
-
-    def is_fully_expanded(self):
-        return self.untried_actions is not None and len(self.untried_actions) == 0
-
-    def best_child(self, c=1.414):
-        eps = 1e-9
-        def uct(ch):
-            return (ch.value / (ch.visits + eps)) + c * math.sqrt(
-                math.log(self.visits + 1) / (ch.visits + eps)
-            )
-        return max(self.children, key=uct)
-
-#%% Online Monte Carlo Tree Search
-def mcts_best_action(env, root_state, iterations=800, rollout_limit=60):
-    root = MonteCarloTreeSearchNode(root_state)
-    root.untried_actions = list(env.get_only_possible_actions(root_state))
-
-    for _ in range(iterations):
-        node = root
-
-        while node.is_fully_expanded() and node.children:
-            node = node.best_child()
-
-        if node.untried_actions is None:
-            node.untried_actions = list(env.get_only_possible_actions(node.state))
-
-        if node.untried_actions:
-            action = node.untried_actions.pop(random.randrange(len(node.untried_actions)))
-            next_states = env.get_next_states(node.state, action)
-            next_state = next_states[0] if next_states else node.state
-
-            child = MonteCarloTreeSearchNode(next_state, node, action)
-            child.untried_actions = list(env.get_only_possible_actions(next_state))
-            node.children.append(child)
-            node = child
-
-        s = node.state
-        total_reward = 0.0
-
-        for _ in range(rollout_limit):
-            if env.is_terminal(s):
-                break
-
-            possible = env.get_only_possible_actions(s)
-            if not possible:
-                break
-
-            a = random.choice(possible)
-            next_states = env.get_next_states(s, a)
-            next_s = next_states[0] if next_states else s
-
-            total_reward += env.get_reward(s, a, next_s)
-            s = next_s
-
-            if env.is_terminal(s):
-                break
-
-        cur = node
-        while cur is not None:
-            cur.visits += 1
-            cur.value += total_reward
-            cur = cur.parent
-
-    if not root.children:
-        acts = env.get_only_possible_actions(root_state)
-        return random.choice(acts) if acts else None
-
-    best = max(root.children, key=lambda c: c.visits)
-    return best.action
+        print('None agent ended in less than 200 steps.')    
 
 #%% Play game
 if __name__ == "__main__":
-    env = LabyrinthMap(2)
+    env = LabyrinthMap(2)   
 
-    def policy(state):
-        return mcts_best_action(env, state, iterations=1200, rollout_limit=80)
-
-    show_game(env, policy, is_show_map=True)
+    show_game(env, policy, show_map=True)
