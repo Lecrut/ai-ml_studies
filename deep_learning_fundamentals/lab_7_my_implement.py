@@ -50,10 +50,10 @@ DATA_PATH = "illegal_surveilance_tagged.csv"
 SEQUENCE_LENGTH = 20
 BATCH_SIZE = 64
 EMBEDDING_DIM = 20
-HIDDEN_SIZE = 128
+HIDDEN_SIZE = 20
 NUM_LAYERS = 1
 LEARNING_RATE = 1e-2
-MAX_VOCAB_SIZE = 10000 
+MAX_VOCAB_SIZE = 7000 
 
 # Ensure the data file exists
 if not os.path.exists(DATA_PATH):
@@ -308,7 +308,27 @@ print("\nTraining complete!")
 
 DATA_PATH_NEW = "illegal_surveilance_test_untagged.csv"
 # Load the new dataset
-df_new = pd.read_csv(DATA_PATH_NEW)
+df_new = pd.read_csv(DATA_PATH_NEW, header=None, names=['sentence'])
 print(f"New Dataset loaded with {len(df_new)} entries.")
 
 # %%
+df_new['sequence'] = df_new['sentence'].apply(lambda x: text_to_sequence(x, vocab, SEQUENCE_LENGTH))
+
+# Convert to tensors and move to same device as model
+sequences = torch.tensor(df_new['sequence'].tolist(), dtype=torch.long)
+device = next(model.parameters()).device
+sequences = sequences.to(device)
+
+# Run inference
+model.eval()
+with torch.no_grad():
+    logits = model(sequences)
+    predictions = (logits > 0).cpu().numpy().astype(int).flatten()
+
+# Add predictions to dataframe
+df_new['sentiment_value'] = predictions
+df_new['sentiment'] = df_new['sentiment_value'].map({0: 'negative', 1: 'positive'})
+
+# Save to CSV
+df_new[['sentence', 'sentiment']].to_csv('illegal_surveilance_predictions.csv', index=False)
+print(f"\nPredictions saved!")
