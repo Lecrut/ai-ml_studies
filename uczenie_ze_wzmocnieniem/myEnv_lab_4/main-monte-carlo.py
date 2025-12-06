@@ -57,7 +57,9 @@ class MonteCarloAgent:
 
     def best_child(self, c=0.4):
         def score(ch):
-            if ch.visits == 0: return float('inf')
+            if ch.visits == 0: 
+                return float('inf')
+            
             return ch.value / ch.visits + c * math.sqrt(math.log(self.visits + 1) / (ch.visits + 1))
         return max(self.children, key=score)
 
@@ -109,6 +111,7 @@ def show_game(env, policy, show_map=True):
         for i in range(env._num_agents):
             if env.is_terminal(env._agents[i].get_current_state()):
                 continue
+
             action = policy(env._agents[i].get_current_state(), i)
             _, reward, terminal =env.step(i, action)
             rewards[i] += reward
