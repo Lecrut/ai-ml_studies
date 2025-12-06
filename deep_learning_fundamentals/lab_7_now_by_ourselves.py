@@ -625,7 +625,7 @@ print("\nTraining complete!")
 # %% Load only texts 
 # Now, we can use the trained model to classify new reviews
 
-DATA_PATH_NEW = "illegal_surveilance_untagged.csv"
+DATA_PATH_NEW = "illegal_surveilance_test_untagged.csv"
 # Load the new dataset
 df_new = pd.read_csv(DATA_PATH_NEW)
 print(f"New Dataset loaded with {len(df_new)} entries.")
