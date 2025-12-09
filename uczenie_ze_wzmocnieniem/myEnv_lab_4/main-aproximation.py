@@ -94,7 +94,7 @@ class MyAgent:
             print(f"\nModel loading error: {e}. Starting new training.")
             return False
 
-def train_agent(agent, env, episodes=1000, max_steps=100):
+def train_agent(agent, env, episodes=5000, max_steps=500):
     gamma = 0.9 
     eps = 0.9
 
@@ -181,8 +181,8 @@ if __name__ == "__main__":
     agent = MyAgent()
     agent.load()
 
-    train_agent(agent, env) 
+    # train_agent(agent, env) 
 
-    agent.save()
+    # agent.save()
 
     show_game(env, agent, show_map=True)
