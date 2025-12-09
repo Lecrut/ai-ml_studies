@@ -50,7 +50,7 @@ def approximation_function(state):
 
 #%% Approximation-based Agent
 class MyAgent:
-    def __init__(self):
+    def __init__(self, num_agents):
         self.model = MLPRegressor(
             hidden_layer_sizes=(64, 64),
             activation='relu',
@@ -66,7 +66,7 @@ class MyAgent:
             [np.zeros(4)]
             )
         
-        self.path = 'records/approximation.pkl'
+        self.path = f"records/{num_agents}/approximation.pkl"
 
     def fit(self, X, y):
         features = [approximation_function(x) for x in X]
@@ -183,9 +183,10 @@ def show_game(env, agent, show_map=True):
 
 #%% Play game
 if __name__ == "__main__":
-    env = LabyrinthMap(2) 
+    num_agents = 2
+    env = LabyrinthMap(num_agents) 
 
-    agent = MyAgent()
+    agent = MyAgent(num_agents)
     agent.load()
 
     # train_agent(agent, env) 
