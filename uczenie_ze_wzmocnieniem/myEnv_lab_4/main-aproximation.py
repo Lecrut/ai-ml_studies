@@ -1,3 +1,4 @@
+#%% Imports
 from labyrinthMAP import LabyrinthMap, get_goal_position, MAP, WIDTH, HEIGHT, LEFT, DOWN, RIGHT, UP
 from sklearn.neural_network import MLPRegressor
 from tqdm import trange
@@ -5,8 +6,10 @@ import numpy as np
 import pickle
 import os
 
+#%% Constants
 AVAILABLE_ACTIONS = [LEFT, DOWN, RIGHT, UP]
 
+#%% Feature extraction 
 def get_radar(mx, my, others_pos):
     moves = [(-1, 0), (0, 1), (1, 0), (0, -1)] 
     readings = []
@@ -45,6 +48,7 @@ def approximation_function(state):
     
     return np.array([pos_x, pos_y, target_dx, target_dy] + radar)
 
+#%% Approximation-based Agent
 class MyAgent:
     def __init__(self):
         self.model = MLPRegressor(
@@ -94,6 +98,7 @@ class MyAgent:
             print(f"\nModel loading error: {e}. Starting new training.")
             return False
 
+#%% Training loop
 def train_agent(agent, env, episodes=5000, max_steps=500):
     gamma = 0.9 
     eps = 0.9
@@ -145,6 +150,7 @@ def train_agent(agent, env, episodes=5000, max_steps=500):
             agent.fit(X, y)
             X, y = [], []
 
+#%% Show game
 def show_game(env, agent, show_map=True):
     env.reset()
     steps = 0
@@ -175,6 +181,7 @@ def show_game(env, agent, show_map=True):
     if not any(done):
         print('None agent ended in less than 200 steps.')     
 
+#%% Play game
 if __name__ == "__main__":
     env = LabyrinthMap(2) 
 
