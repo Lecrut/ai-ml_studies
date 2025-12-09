@@ -275,7 +275,7 @@ class LabyrinthMap:
                 elif ch.isdigit():
                     line_parts.append(f"{GREEN}{ch}{RESET}")
                 else:
-                    line_parts.append(' ')
+                    line_parts.append('.')
             print(''.join(line_parts), flush=True)
         
         print('Num of agents:', self._num_agents)
