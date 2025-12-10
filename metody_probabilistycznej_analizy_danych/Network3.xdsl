@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- This network was created in GeNIe Academic, which can be used for academic teaching and research purposes only -->
+<smile version="1.0" id="Network3" numsamples="10000" discsamples="10000">
+	<nodes>
+		<cpt id="greenhouse_gas_emission_">
+			<state id="State0" />
+			<state id="State1" />
+			<probabilities>0.5 0.5</probabilities>
+		</cpt>
+		<cpt id="reflection_of_infrared_radiation_back_to_Earth">
+			<state id="State0" />
+			<state id="State1" />
+			<parents>greenhouse_gas_emission_</parents>
+			<probabilities>0.5 0.5 0.5 0.5</probabilities>
+		</cpt>
+		<cpt id="temperature_rise_">
+			<state id="State0" />
+			<state id="State1" />
+			<parents>greenhouse_gas_emission_ reflection_of_infrared_radiation_back_to_Earth</parents>
+			<probabilities>0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5</probabilities>
+		</cpt>
+		<cpt id="loss_of_ice_cover_and__permafrost">
+			<state id="State0" />
+			<state id="State1" />
+			<parents>temperature_rise_</parents>
+			<probabilities>0.5 0.5 0.5 0.5</probabilities>
+		</cpt>
+		<cpt id="turning_forests_to_desert">
+			<state id="State0" />
+			<state id="State1" />
+			<parents>temperature_rise_</parents>
+			<probabilities>0.5 0.5 0.5 0.5</probabilities>
+		</cpt>
+	</nodes>
+	<extensions>
+		<genie version="1.0" app="GeNIe 5.0.5310.0 ACADEMIC" name="Network3">
+			<node id="greenhouse_gas_emission_">
+				<name>greenhouse gas emission </name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>91 94 190 155</position>
+			</node>
+			<node id="reflection_of_infrared_radiation_back_to_Earth">
+				<name>reflection of infrared radiation back to Earth</name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>256 158 372 230</position>
+			</node>
+			<node id="temperature_rise_">
+				<name>temperature rise,</name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>98 232 191 290</position>
+			</node>
+			<node id="loss_of_ice_cover_and__permafrost">
+				<name>loss of ice cover and .permafrost</name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>239 357 354 428</position>
+			</node>
+			<node id="turning_forests_to_desert">
+				<name>turning forests to desert</name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>99 359 191 416</position>
+			</node>
+		</genie>
+	</extensions>
+</smile>
