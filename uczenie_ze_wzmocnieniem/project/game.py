@@ -3,6 +3,7 @@ from abstract_car import AbstractCar
 from utils import scale_image
 from itertools import permutations
 import numpy as np
+from myAgent import MyAgent
 
 #Based on https://github.com/techwithtim/Pygame-Car-Racer
 
@@ -146,8 +147,8 @@ class Game:
         who_finished_first = []
         while self.running and len(self.cars) != 0:
             self.clock.tick(self.fps)
-            # draw_checkpoints(self.win, CHECKPOINTS)
-            # pygame.display.update()
+            draw_checkpoints(self.win, CHECKPOINTS)
+            pygame.display.update()
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -205,8 +206,11 @@ class PlayerCar(AbstractCar):
 class PlayerCar2(AbstractCar):
 
     def __init__(self, name):
-        # Call the AbstractCar __init__ method
         super().__init__(name)
+
+        car_agent = MyAgent()
+        car_agent.load()
+        self.agent = car_agent
 
     def choose_action(self, state):
         """
@@ -231,27 +235,31 @@ class PlayerCar2(AbstractCar):
             - "stop": Reduce the car's speed.
             """
 
-        """INSERT YOUR CODE HERE"""
+        action_index = int(self.agent.predict(state).argmax())
+        actions = ["forward", "backward", "left", "right", "stop"]
+        return actions[action_index]
 
-        keys = pygame.key.get_pressed()
+        # keys = pygame.key.get_pressed()
 
-        if keys[pygame.K_w]:
-            return "forward"
-        elif keys[pygame.K_s]:
-            return "backward"
-        elif keys[pygame.K_a]:
-            return "left"
-        elif keys[pygame.K_d]:
-            return "right"
-        else:
-            return "stop"
+        # if keys[pygame.K_w]:
+        #     return "forward"
+        # elif keys[pygame.K_s]:
+        #     return "backward"
+        # elif keys[pygame.K_a]:
+        #     return "left"
+        # elif keys[pygame.K_d]:
+        #     return "right"
+        # else:
+        #     return "stop"
+
 
 def main():
 
     final_results = dict()
 
     #initializing players - it is possible to play up to 4 players together
-    players = [PlayerCar("P1"), PlayerCar2("P2"), PlayerCar("P1"), PlayerCar2("P2")]
+    # players = [PlayerCar("P1"), PlayerCar2("P2"), PlayerCar("P1"), PlayerCar2("P2")]
+    players = [PlayerCar2("AI_1"), PlayerCar2("AI_2")]
 
     for p in players:
         final_results[p.get_name()] = 0
