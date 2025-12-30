@@ -14,6 +14,7 @@ def approximation_function(
     distances = np.array(state[0], dtype=np.float32)   
     car_distances = np.array(state[1], dtype=np.float32)  
     progress = np.array(state[2], dtype=np.float32)       
+    speed = state[4]
     
     distances_norm = distances / max_ray_distance
     car_distances_norm = car_distances / max_ray_distance
@@ -33,7 +34,7 @@ def approximation_function(
         distances_norm,       
         car_distances_norm,   
         progress_norm,        
-        [avg_wall_dist, min_wall_dist, side_bias]
+        [avg_wall_dist, min_wall_dist, side_bias, speed],
     ])
     
     return features
@@ -54,7 +55,7 @@ class MyAgent:
             random_state=42
         )
         self.model.fit(
-            [np.zeros(21)], 
+            [np.zeros(22)], 
             [np.zeros(5)] 
         )
 
