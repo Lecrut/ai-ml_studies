@@ -282,7 +282,8 @@ def train_agent(num_episodes=5000,
                 max_steps=2000, 
                 gamma=0.99,
                 batch_size=64,
-                validate_every=20 
+                validate_every=20,
+                epsilon_decay_steps=1000
                 ):
 
     class TrainingCar(AbstractCar):
@@ -324,10 +325,10 @@ def train_agent(num_episodes=5000,
     is_loaded = agent.load()
     if is_loaded:
         print("Model wczytany. Kontynuuję trening.")
-        epsilon = epsilon_end 
+        current_epsilon = epsilon_end 
     else:
         print("Nowy trening.")
-        epsilon = epsilon_start
+        current_epsilon = epsilon_start
 
     replay_buffer = deque(maxlen=50000)
     game = Game(WIDTH, HEIGHT, FPS)
@@ -344,21 +345,23 @@ def train_agent(num_episodes=5000,
     for episode in iterator:
         game.cars = []
         cars = []
+        start_idx = None
 
         is_validation_run = (episode > 0) and (episode % validate_every == 0)
         
         if is_validation_run:
-            current_epsilon = 0.01 
+            current_epsilon = 0.0 
             start_idx = 0 
+        elif is_loaded and episode == 0:
+            current_epsilon = epsilon_end
         else:
-            decay = 0.995
-            epsilon = max(epsilon_end, epsilon * decay)
-            current_epsilon = epsilon
-            start_idx = None 
-        
+            progress = (episode % epsilon_decay_steps) / epsilon_decay_steps
+            progress = min(1.0, progress)
+            current_epsilon = epsilon_end + (epsilon_start - epsilon_end) * ((1 - progress) ** 2)
+
 
         for i in range(4):
-            eps = current_epsilon if is_validation_run else (current_epsilon * (0.8 + 0.4*random.random()))
+            eps = current_epsilon
             
             car = TrainingCar(f"AI_{i}", agent, min(1.0, eps))
             game.add_car(car)
@@ -460,10 +463,8 @@ def train_agent(num_episodes=5000,
         if is_validation_run:
             max_episode_reward = max(car.total_reward for car in cars)
             
-            max_checkpoint = max(car.checkpoint_index for car in cars)
-            did_reach_far = max_checkpoint > (len(CHECKPOINTS) * 0.9)
-            
-            if iterator: iterator.set_description(f"Valid: Rew {max_episode_reward:.1f} Best {best_validation_reward:.1f}")
+            if iterator: 
+                iterator.set_description(f"Valid: Rew {max_episode_reward:.1f} Best {best_validation_reward:.1f} Eps {current_epsilon:.2f}")
 
             if max_episode_reward > best_validation_reward:
                 best_validation_reward = max_episode_reward
@@ -472,6 +473,7 @@ def train_agent(num_episodes=5000,
 
     agent.save(best_validation_reward)
     print("Trening zakończony.")
+
 
 def main():
     final_results = dict()
