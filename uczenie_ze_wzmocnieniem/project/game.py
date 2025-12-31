@@ -6,6 +6,7 @@ import numpy as np
 import math
 from myAgent import MyAgent
 import random
+import copy
 from collections import deque
 from tqdm import trange
 import time
@@ -283,7 +284,8 @@ def train_agent(num_episodes=5000,
                 gamma=0.99,
                 batch_size=64,
                 validate_every=20,
-                epsilon_decay_steps=1000
+                epsilon_decay_steps=1000,
+                target_update_freq=500
                 ):
 
     class TrainingCar(AbstractCar):
@@ -294,10 +296,15 @@ def train_agent(num_episodes=5000,
             self.last_checkpoint = 0
             self.total_reward = 0
             self.stuck_counter = 0
+            self.collision_count = 0
+            self.checkpoints_passed = 0
 
         def choose_action(self, state):
             if random.random() < self.epsilon:
-                return random.choice(["forward", "forward", "left", "right", "stop"])
+                return random.choices(
+                    ["forward", "backward", "left", "right", "stop"],
+                    weights=[0.5, 0.05, 0.2, 0.2, 0.05]
+                )[0]
             else:
                 q_values = self.agent.predict(state)
                 actions = ["forward", "backward", "left", "right", "stop"]
@@ -307,7 +314,7 @@ def train_agent(num_episodes=5000,
         if specific_index is not None:
             idx = specific_index
         else:
-            idx = random.randint(0, len(track_checkpoints) - 5)
+            idx = random.randint(0, len(track_checkpoints) - 10)
         
         curr_x, curr_y = track_checkpoints[idx]
         next_x, next_y = track_checkpoints[idx + 1]
@@ -330,10 +337,16 @@ def train_agent(num_episodes=5000,
         print("Nowy trening.")
         current_epsilon = epsilon_start
 
+    target_agent = copy.deepcopy(agent)
+    print(f"Target Network utworzona. Aktualizacja co {target_update_freq} kroków.")
+
     replay_buffer = deque(maxlen=50000)
     game = Game(WIDTH, HEIGHT, FPS)
     
     best_validation_reward = float('-inf')
+    episode_rewards = []
+    episode_lengths = []
+    training_step = 0
 
     try:
         iterator = trange(num_episodes, desc="Epizod")
@@ -361,17 +374,29 @@ def train_agent(num_episodes=5000,
 
 
         for i in range(4):
-            eps = current_epsilon
-            
-            car = TrainingCar(f"AI_{i}", agent, min(1.0, eps))
+            car = TrainingCar(f"AI_{i}", agent, current_epsilon)
             game.add_car(car)
             
-            sx, sy, s_angle, s_idx = calculate_spawn_data(CHECKPOINTS, specific_index=start_idx)
-            
-            car.x, car.y = sx, sy
-            car.angle = s_angle
-            car.checkpoint_index = s_idx
-            car.last_checkpoint = s_idx
+            if is_validation_run:
+                sx, sy, s_angle, s_idx = calculate_spawn_data(CHECKPOINTS, specific_index=0)
+                car.x, car.y = sx, sy
+                car.angle = s_angle
+                car.checkpoint_index = s_idx
+                car.last_checkpoint = s_idx
+            else:
+                rand_idx = random.randint(0, len(CHECKPOINTS) - 5)
+                sx, sy, s_angle, s_idx = calculate_spawn_data(CHECKPOINTS, specific_index=rand_idx)
+                
+                jitter_x = random.randint(-20, 20)
+                jitter_y = random.randint(-20, 20)
+                
+                jitter_angle = random.randint(-20, 20)
+
+                car.x = sx + jitter_x
+                car.y = sy + jitter_y
+                car.angle = s_angle + jitter_angle
+                car.checkpoint_index = s_idx
+                car.last_checkpoint = s_idx
             
             cars.append(car)
 
@@ -400,30 +425,38 @@ def train_agent(num_episodes=5000,
                 next_car_distances = car.get_distances_to_cars(game.cars)
                 next_state = [next_distances, next_car_distances, car.get_progress(), CHECKPOINTS, car.vel / car.max_vel]
 
-                reward = -0.1 
+                reward = 0.0
                 norm_vel = car.vel / car.max_vel
                 
-                reward += norm_vel * 0.5
+                reward -= 0.1
+                
+                
+                reward += norm_vel * 0.1
 
                 if car.checkpoint_index > car.last_checkpoint:
-                    reward += 50.0 
+                    progress_reward = 10.0 
+                    reward += progress_reward
                     car.last_checkpoint = car.checkpoint_index
                     car.stuck_counter = 0
+                    car.checkpoints_passed += 1
                     
                     if car.checkpoint_index >= len(CHECKPOINTS) - 2:
-                        reward += 200
+                        reward += 50.0  
+                        done[i] = True
 
                 if car.collide(TRACK_BORDER_MASK):
-                    reward -= 50
+                    reward -= 100.0  
+                    car.collision_count += 1
                     done[i] = True
                 
                 if norm_vel < 0.05:
                     car.stuck_counter += 1
+                    reward -= 0.05 
                 else:
                     car.stuck_counter = 0
                 
                 if car.stuck_counter > 60: 
-                    reward -= 20
+                    reward -= 5.0  
                     done[i] = True
 
                 action_idx = actions_list.index(action_str)
@@ -432,8 +465,14 @@ def train_agent(num_episodes=5000,
                 car.total_reward += reward
 
             step += 1
+            training_step += 1
             
-            if len(replay_buffer) > batch_size and step % 4 == 0:
+            if training_step % target_update_freq == 0:
+                target_agent = copy.deepcopy(agent)
+                if not is_validation_run:
+                    print(f"\n[Krok {training_step}] Target Network zaktualizowana.")
+            
+            if len(replay_buffer) >= batch_size and training_step % 10 == 0:
                 batch = random.sample(replay_buffer, batch_size)
                 
                 states_b = [x[0] for x in batch]
@@ -443,7 +482,7 @@ def train_agent(num_episodes=5000,
                 dones_b = [x[4] for x in batch]
 
                 current_qs = [agent.predict(s) for s in states_b]
-                next_qs = [agent.predict(s) for s in next_states_b]
+                next_qs = [target_agent.predict(s) for s in next_states_b]
 
                 X = []
                 y = []
@@ -460,19 +499,35 @@ def train_agent(num_episodes=5000,
                 
                 agent.fit(X, y)
         
+        avg_reward = np.mean([car.total_reward for car in cars])
+        max_reward = max(car.total_reward for car in cars)
+        avg_checkpoints = np.mean([car.checkpoints_passed for car in cars])
+        max_checkpoints = max(car.checkpoints_passed for car in cars)
+        
+        episode_rewards.append(max_reward)
+        episode_lengths.append(step)
+        
         if is_validation_run:
-            max_episode_reward = max(car.total_reward for car in cars)
-            
             if iterator: 
-                iterator.set_description(f"Valid: Rew {max_episode_reward:.1f} Best {best_validation_reward:.1f} Eps {current_epsilon:.2f}")
+                iterator.set_description(
+                    f"VALID: Rew {max_reward:.1f} (Avg {avg_reward:.1f}) "
+                    f"Chkp {max_checkpoints}/{len(CHECKPOINTS)} Best {best_validation_reward:.1f}"
+                )
 
-            if max_episode_reward > best_validation_reward:
-                best_validation_reward = max_episode_reward
+            if max_reward > best_validation_reward:
+                best_validation_reward = max_reward
                 agent.save(best_validation_reward)
-                print(f" >>> ZAPISANO NOWY MODEL! (Reward: {best_validation_reward:.1f})")
+                print(f"\n >>> NOWY REKORD! (Reward: {best_validation_reward:.1f}, Checkpoints: {max_checkpoints})")
+        else:
+            if iterator and len(episode_rewards) >= 10:
+                recent_avg_reward = np.mean(episode_rewards[-10:])
+                recent_avg_length = np.mean(episode_lengths[-10:])
+                iterator.set_description(
+                    f"Train: Rew {max_reward:.1f} Avg10 {recent_avg_reward:.1f} "
+                    f"Chkp {max_checkpoints} Steps {step} Eps {current_epsilon:.3f}"
+                )
 
     agent.save(best_validation_reward)
-    print("Trening zakończony.")
 
 
 def main():
