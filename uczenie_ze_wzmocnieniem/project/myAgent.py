@@ -81,7 +81,9 @@ class MyAgent:
             return self.model(features_tensor).cpu().numpy()
     
     def save(self, current_reward):
+        print(f"\n    Aktualny najlepszy wynik: {self.best_reward:.1f} i podany wynik: {current_reward:.1f}.")
         if current_reward >= self.best_reward:
+            print(f"    Nowy najlepszy wynik! Zapisuję model.")
             self.best_reward = current_reward
             save_data = {
                 "model_state": self.model.state_dict(),
@@ -90,6 +92,8 @@ class MyAgent:
             }
             os.makedirs('records', exist_ok=True)
             torch.save(save_data, self.path)
+        else:
+            print("    Wynik nie poprawiony. Model nie został zapisany.")
 
     def load(self):
         if os.path.exists(self.path):
@@ -97,5 +101,12 @@ class MyAgent:
             self.model.load_state_dict(checkpoint["model_state"])
             self.optimizer.load_state_dict(checkpoint["optimizer_state"])
             self.best_reward = checkpoint.get("best_reward", 0)
-            return self.best_reward
-        return False
+            print(f"    Załadowano model z najlepszym wynikiem: {self.best_reward:.1f}.")
+            return True, self.best_reward
+        
+        return False, None
+    
+    def smaller_learning_rate(self, factor=0.7):
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] *= factor
+        print(f"    Zmniejszono współczynnik uczenia. Nowy lr: {self.optimizer.param_groups[0]['lr']:.6f}")
