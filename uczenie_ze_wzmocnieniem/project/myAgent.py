@@ -103,6 +103,8 @@ class MyAgent:
             self.best_reward = checkpoint.get("best_reward", 0)
             print(f"    Załadowano model z najlepszym wynikiem: {self.best_reward:.1f}.")
             return True, self.best_reward
+        else:
+            print("    Brak zapisanego modelu do załadowania.")
         
         return False, None
     
