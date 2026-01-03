@@ -1,102 +1,101 @@
 #%% Imports
-from sklearn.neural_network import MLPRegressor
+import torch
+import torch.nn as nn
+import torch.optim as optim
 import numpy as np
-import pickle
 import os
 
-#%% Funkcja przetwarzająca dane wejściowe (Feature Engineering)
-def approximation_function(
-        state=None,
-        max_ray_distance=1000.0,
-        estimated_max_dist=10000.0,
-        max_checkpoints=50.0
-        ):  
-    distances = np.array(state[0], dtype=np.float32)   
-    car_distances = np.array(state[1], dtype=np.float32)  
-    progress = np.array(state[2], dtype=np.float32)       
-    speed = state[4]
+#%% Approximation function
+def approximation_function(state):
+    dists_walls = np.array(state[0], dtype=np.float32).flatten() / 500.0
+    dists_cars = np.array(state[1], dtype=np.float32).flatten() / 500.0
     
-    distances_norm = distances / max_ray_distance
-    car_distances_norm = car_distances / max_ray_distance
-    
-    progress_norm = np.zeros_like(progress)
-    progress_norm[0] = progress[0] / max_checkpoints
-    progress_norm[1] = progress[1] / estimated_max_dist 
-    
-    avg_wall_dist = np.mean(distances_norm)
-    min_wall_dist = np.min(distances_norm)
+    checkpoint_idx = np.array([state[2][0] / 100.0], dtype=np.float32)
+    speed = np.array([state[4]], dtype=np.float32).flatten()
 
-    left_side = np.mean(distances_norm[0:4])
-    right_side = np.mean(distances_norm[4:8])
-    side_bias = left_side - right_side 
+    return np.concatenate([dists_walls, dists_cars, checkpoint_idx, speed])
 
-    features = np.concatenate([
-        distances_norm,       
-        car_distances_norm,   
-        progress_norm,        
-        [avg_wall_dist, min_wall_dist, side_bias, speed],
-    ])
-    
-    return features
+#%% Dueling DQN Model
+class DuelingDQN(nn.Module):
+    def __init__(self, input_size=18, output_size=5):
+        super(DuelingDQN, self).__init__()
 
-#%% Główna klasa Agenta
+        self.feature_layer = nn.Sequential(
+            nn.Linear(input_size, 128),
+            nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.ReLU()
+        )
+        
+        self.value_stream = nn.Linear(128, 1)
+        
+
+        self.advantage_stream = nn.Linear(128, output_size)
+
+    def forward(self, x):
+        features = self.feature_layer(x)
+        values = self.value_stream(features)
+        advantages = self.advantage_stream(features)
+
+        return values + (advantages - advantages.mean(dim=1, keepdim=True))
+
+#%% MyAgent Class
 class MyAgent:
     def __init__(self):
         self.best_reward = float('-inf')
-        self.path = "records/race.pkl"
+        self.path = "records/race_model.pth" 
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        self.model = MLPRegressor(
-            hidden_layer_sizes=(64, 64),
-            activation='relu',
-            solver='adam',
-            learning_rate_init=0.001,
-            max_iter=1,         
-            warm_start=True,    
-            random_state=42
-        )
-        self.model.fit(
-            [np.zeros(22)], 
-            [np.zeros(5)] 
-        )
+        self.model = DuelingDQN(input_size=18, output_size=5).to(self.device)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001) 
+        self.criterion = nn.SmoothL1Loss()
 
     def fit(self, X, y):
-        features = [approximation_function(x) for x in X]
-        self.model.partial_fit(features, y)
+        self.model.train()
+        features = np.array([approximation_function(x) for x in X], dtype=np.float32)
+        targets = np.array(y, dtype=np.float32)
+        
+        features_tensor = torch.tensor(features).to(self.device)
+        targets_tensor = torch.tensor(targets).to(self.device)
+        
+        self.optimizer.zero_grad()
+        outputs = self.model(features_tensor)
+        loss = self.criterion(outputs, targets_tensor)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+        self.optimizer.step()
+        return loss.item()
 
-    def predict(self, x):          
-        features = approximation_function(x)
-        return self.model.predict([features])[0] 
+    def predict(self, state):
+        self.model.eval()
+        with torch.no_grad():
+            features = approximation_function(state)
+            features_tensor = torch.tensor(features, dtype=torch.float32).unsqueeze(0).to(self.device)
+            return self.model(features_tensor).cpu().numpy()[0]
+    
+    def predict_batch(self, states):
+        self.model.eval()
+        with torch.no_grad():
+            features = np.array([approximation_function(s) for s in states], dtype=np.float32)
+            features_tensor = torch.tensor(features).to(self.device)
+            return self.model(features_tensor).cpu().numpy()
     
     def save(self, current_reward):
-        if current_reward > self.best_reward:
-            print(f"\n  Zapis - Nowy rekord! ({current_reward:.2f} > {self.best_reward:.2f}). Zapisywanie...")
+        if current_reward >= self.best_reward:
             self.best_reward = current_reward
-            
             save_data = {
-                "model": self.model,
+                "model_state": self.model.state_dict(),
+                "optimizer_state": self.optimizer.state_dict(),
                 "best_reward": self.best_reward
             }
-            
             os.makedirs('records', exist_ok=True)
-            try:
-                with open(self.path, 'wb') as f:
-                    pickle.dump(save_data, f)
-            except Exception as e:
-                print(f"Błąd zapisu pliku: {e}")
+            torch.save(save_data, self.path)
 
     def load(self):
-        try:
-            with open(self.path, 'rb') as f:
-                data = pickle.load(f)
-                self.model = data["model"]
-                self.best_reward = data["best_reward"]
-                
-                print(f"\nZaładowano Agenta. Rekord do pobicia: {self.best_reward:.2f}")
-                return True
-                
-        except FileNotFoundError:
-            print(f"\nBrak zapisu '{self.path}'. Tworzę nowego agenta.")
-            return False
-        except Exception as e:
-            print(f"\nBłąd ładowania (plik może być uszkodzony): {e}. Tworzę nowego agenta.")
-            return False
+        if os.path.exists(self.path):
+            checkpoint = torch.load(self.path, map_location=self.device)
+            self.model.load_state_dict(checkpoint["model_state"])
+            self.optimizer.load_state_dict(checkpoint["optimizer_state"])
+            self.best_reward = checkpoint.get("best_reward", 0)
+            return self.best_reward
+        return False
