@@ -305,13 +305,13 @@ def train_agent(num_episodes=5000,
     SHOW_VALIDATION = False
     CHECKPOINT_TIMEOUT = 120   
     
-    RWD_WALL_COLLISION = -15.0      
-    RWD_CAR_COLLISION = -1.0         
-    RWD_CHECKPOINT = 40.0         
-    RWD_IDLE_PENALTY = -5.0       
-    RWD_VELOCITY_BONUS = 3.0        
-    RWD_FINISH = 500.0             
-    RWD_TIMEOUT_PENALTY = -10.0   
+    RWD_WALL_COLLISION = -4.0      
+    RWD_CAR_COLLISION = -1.0        
+    RWD_CHECKPOINT = 25.0          
+    RWD_IDLE_PENALTY = -2.0        
+    RWD_VELOCITY_BONUS = 3.0     
+    RWD_FINISH = 200.0             
+    RWD_TIMEOUT_PENALTY = -2.0
 
     class TrainingCar(AbstractCar):
         def __init__(self, name, agent_model, epsilon_val):
