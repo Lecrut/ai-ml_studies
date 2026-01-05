@@ -297,3 +297,7 @@ if __name__ == "__main__":
     
     test_df.to_csv('test_predictions.csv', index=False)
     print("Wyniki zapisano do test_predictions.csv")
+
+    acc = (test_df['label'] == test_df['prediction']).mean()
+
+    print(f"Accuracy: {acc}")
