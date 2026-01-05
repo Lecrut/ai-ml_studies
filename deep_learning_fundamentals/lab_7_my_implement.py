@@ -10,10 +10,15 @@ import pandas as pd
 import string
 from collections import Counter
 from sklearn.model_selection import train_test_split
+import os
+
+#%% Constants
+CPU_WORKERS = os.cpu_count() if os.cpu_count() is not None else 1
+BATCH_SIZE = 128
 
 #%% Text Processing - Tokenization and Vocabulary
 class TextProcessor:
-    def __init__(self, max_vocab_size=7000, max_len=20):
+    def __init__(self, max_vocab_size=10000, max_len=45):
         self.max_vocab_size = max_vocab_size
         self.max_len = max_len
         self.vocab = {'<pad>': 0, '<unk>': 1}
@@ -75,7 +80,7 @@ class MyClipModel(pl.LightningModule):
         
         resnet = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
         self.vision_encoder = nn.Sequential(*list(resnet.children())[:-1]) 
-        self.vision_dim = 2048 # ResNet50 output size
+        self.vision_dim = 2048 
         
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.lstm = nn.LSTM(embedding_dim, hidden_dim, batch_first=True)
@@ -116,21 +121,35 @@ class MyClipModel(pl.LightningModule):
         loss = self.criterion(logits, labels.unsqueeze(1))
         predictions = (torch.sigmoid(logits) > 0.5).float()
         acc = (predictions == labels.unsqueeze(1)).float().mean()
-        self.log('val_acc', acc, prog_bar=True)
+        self.log('val_acc', acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
 
 #%% Training and Prediction Functions
-def fit(model, df_train, df_val, epochs=20, batch_size=32):
+def fit(model, df_train, df_val, epochs=20):
     train_ds = ImageTextDataset(df_train, processor)
     val_ds = ImageTextDataset(df_val, processor)
     
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0)
+    train_loader = DataLoader(
+        train_ds, 
+        batch_size=BATCH_SIZE, 
+        shuffle=True, 
+        num_workers=CPU_WORKERS
+        )
+    val_loader = DataLoader(
+        val_ds,
+        batch_size=BATCH_SIZE, 
+        shuffle=False, 
+        num_workers=CPU_WORKERS
+        )
     
-    trainer = pl.Trainer(max_epochs=epochs, accelerator="auto", enable_progress_bar=True)
+    trainer = pl.Trainer(
+        max_epochs=epochs, 
+        accelerator="auto", 
+        enable_progress_bar=True
+        )
     
     print("Rozpoczynam trening...")
     trainer.fit(model, train_loader, val_loader)
@@ -143,7 +162,12 @@ def predict(model, df_test):
     model.to(device)
     
     dataset = ImageTextDataset(df_test, processor)
-    loader = DataLoader(dataset, batch_size=32, shuffle=False)
+    loader = DataLoader(
+        dataset, 
+        batch_size=BATCH_SIZE, 
+        shuffle=False,
+        num_workers=CPU_WORKERS
+        )
     
     predictions = []
     
