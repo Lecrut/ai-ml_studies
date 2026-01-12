@@ -8,6 +8,7 @@ import os
 import string
 from collections import Counter
 import pytorch_lightning as pl
+from model import TextProcessor, SubmissionModel
 
 # Constants
 BATCH_SIZE = 32
@@ -16,39 +17,8 @@ MAX_SAMPLES = 10000  # Use subset for quick training
 
 # Paths
 DATA_DIR = r"c:\Users\Filip\Documents\mgr-siium\deep_learning_fundamentals\ex_1"
-CAPTIONS_FILE = os.path.join(DATA_DIR, "captions_coco.csv")
+CAPTIONS_FILE = os.path.join(DATA_DIR, "captions_flickr8k_with_false.csv")
 IMAGES_DIR = os.path.join(DATA_DIR, "datasets")
-
-# Text Processor
-class TextProcessor:
-    def __init__(self, max_vocab_size=5000, max_len=45):  # Smaller vocab for speed
-        self.max_vocab_size = max_vocab_size
-        self.max_len = max_len
-        self.vocab = {'<pad>': 0, '<unk>': 1}
-        
-    def clean_and_tokenize(self, text):
-        text = str(text).lower()
-        text = text.translate(str.maketrans('', '', string.punctuation))
-        return text.split()
-
-    def build_vocab(self, sentences):
-        all_tokens = [token for s in sentences for token in self.clean_and_tokenize(s)]
-        token_counts = Counter(all_tokens)
-        top_words = token_counts.most_common(self.max_vocab_size - 2)
-        
-        for i, (word, count) in enumerate(top_words):
-            self.vocab[word] = i + 2
-            
-    def text_to_sequence(self, text):
-        sequence = [self.vocab.get(word, self.vocab['<unk>']) for word in self.clean_and_tokenize(text)]
-        if len(sequence) < self.max_len:
-            sequence.extend([self.vocab['<pad>']] * (self.max_len - len(sequence)))
-        elif len(sequence) > self.max_len:
-            sequence = sequence[:self.max_len]
-        return sequence
-
-    def __len__(self):
-        return len(self.vocab)
 
 # Dataset
 class ImageTextDataset(Dataset):
@@ -81,65 +51,53 @@ class ImageTextDataset(Dataset):
         return image, sequence, label
 
 # Model
-class MyClipModel(pl.LightningModule):
-    def __init__(self, vocab_size, embedding_dim=50, hidden_dim=64, learning_rate=1e-3):
+# Training Model using SubmissionModel
+class TrainingModel(pl.LightningModule):
+    def __init__(self, vocab_size, learning_rate=5e-4):
         super().__init__()
         self.save_hyperparameters()
-        
-        resnet = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
-        self.vision_encoder = nn.Sequential(*list(resnet.children())[:-1]) 
-        self.vision_dim = 2048 
-        
-        self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        self.lstm = nn.LSTM(embedding_dim, hidden_dim, batch_first=True)
-        self.text_dim = hidden_dim
-        
-        self.classifier = nn.Sequential(
-            nn.Linear(self.vision_dim + self.text_dim, 128),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(128, 1)
-        )
-        
+        self.model = SubmissionModel(vocab_size=vocab_size)
+        # Remove Sigmoid from classifier for logits
+        self.model.classifier = nn.Sequential(*list(self.model.classifier.children())[:-1])  # Remove Sigmoid
         self.criterion = nn.BCEWithLogitsLoss()
 
     def forward(self, images, captions):
-        img_features = self.vision_encoder(images)
-        img_features = img_features.view(img_features.size(0), -1) 
-                
-        embedded = self.embedding(captions)
-        _, (h_n, _) = self.lstm(embedded)
-        text_features = h_n[-1] 
-        
-        combined = torch.cat((img_features, text_features), dim=1)
-        
-        logits = self.classifier(combined)
-        return logits
+        return self.model(images, captions)
 
     def training_step(self, batch, batch_idx):
         images, captions, labels = batch
         logits = self(images, captions)
-        loss = self.criterion(logits, labels.unsqueeze(1))
+        loss = self.criterion(logits, labels.float())
         self.log('train_loss', loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         images, captions, labels = batch
         logits = self(images, captions)
-        loss = self.criterion(logits, labels.unsqueeze(1))
-        predictions = (torch.sigmoid(logits) > 0.5).float()
-        acc = (predictions == labels.unsqueeze(1)).float().mean()
-        self.log('val_acc', acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        loss = self.criterion(logits, labels.float())
+        
+        probs = torch.sigmoid(logits)
+        predictions = (probs > 0.5).float()
+        acc = (predictions == labels).float().mean()
+        
+        self.log('val_loss', loss, prog_bar=True)
+        self.log('val_acc', acc, prog_bar=True)
         return loss
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        params = [
+            {'params': self.model.vision_encoder.parameters(), 'lr': 1e-5}, 
+            {'params': self.model.lstm.parameters(), 'lr': 1e-3},
+            {'params': self.model.image_projector.parameters(), 'lr': 1e-3},
+            {'params': self.model.text_projector.parameters(), 'lr': 1e-3},
+            {'params': self.model.classifier.parameters(), 'lr': 1e-3}
+        ]
+        return torch.optim.Adam(params)
 
 # Main training
 if __name__ == "__main__":
     # Load data
     df = pd.read_csv(CAPTIONS_FILE)
-    df = df[df['image_path'].str.contains('train2014')]  # Only train2014
     df = df.sample(n=min(MAX_SAMPLES, len(df)), random_state=42).reset_index(drop=True)  # Subset
     
     # Split
@@ -147,7 +105,7 @@ if __name__ == "__main__":
     val_df = df[int(0.8*len(df)):]
     
     # Build vocab
-    processor = TextProcessor()
+    processor = TextProcessor(max_vocab_size=5000, max_len=40)
     processor.build_vocab(train_df['caption'].tolist())
     
     # Datasets
@@ -164,14 +122,14 @@ if __name__ == "__main__":
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
     
     # Model
-    model = MyClipModel(vocab_size=len(processor))
+    model = TrainingModel(vocab_size=len(processor))
     
     # Trainer
     trainer = pl.Trainer(max_epochs=EPOCHS, accelerator="auto", devices=1)
     trainer.fit(model, train_loader, val_loader)
     
     # Save weights
-    torch.save(model.state_dict(), os.path.join(os.path.dirname(__file__), "weights.pth"))
+    torch.save(model.model.state_dict(), os.path.join(os.path.dirname(__file__), "weights.pth"))
     
     # Update model.py with vocab
     vocab_str = str(processor.vocab)
@@ -179,8 +137,8 @@ if __name__ == "__main__":
     with open(model_py_path, 'r') as f:
         content = f.read()
     
-    # Replace the dummy vocab init
-    old_vocab = "processor.build_vocab([\"dummy sentence for init\"])"
+    # Replace the dummy vocab
+    old_vocab = "processor.vocab = {'<pad>': 0, '<unk>': 1, 'a': 2, 'the': 3, 'is': 4, 'image': 5, 'of': 6, 'and': 7, 'with': 8, 'in': 9, 'on': 10}  # Dummy vocab"
     new_vocab = f"processor.vocab = {vocab_str}"
     content = content.replace(old_vocab, new_vocab)
     
