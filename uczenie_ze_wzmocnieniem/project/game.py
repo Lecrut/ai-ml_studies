@@ -113,7 +113,7 @@ class Game:
 
         for car in self.cars:
             car.draw(self.win)
-            car.draw_rays(self.win, TRACK_BORDER_MASK)
+            #car.draw_rays(self.win, TRACK_BORDER_MASK)
 
 
         pygame.display.update()
@@ -164,7 +164,7 @@ class Game:
         while self.running and len(self.cars) != 0:
             if self.render and self.clock:
                 self.clock.tick(self.fps)
-                draw_checkpoints(self.win, CHECKPOINTS)
+                # draw_checkpoints(self.win, CHECKPOINTS)
                 pygame.display.update()
 
             if self.render:
