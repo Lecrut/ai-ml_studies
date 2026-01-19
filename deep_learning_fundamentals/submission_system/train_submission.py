@@ -12,7 +12,7 @@ from model import TextProcessor, SubmissionModel
 
 # Constants
 BATCH_SIZE = 32
-EPOCHS = 5  # Small number for quick training
+EPOCHS = 15  # Small number for quick training
 MAX_SAMPLES = 10000  # Use subset for quick training
 
 # Paths

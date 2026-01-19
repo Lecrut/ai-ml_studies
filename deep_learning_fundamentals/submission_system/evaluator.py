@@ -8,8 +8,8 @@ import importlib.util
 
 # --- PATHS INSIDE CONTAINER ---
 # These match the -v flags we will set in the Orchestrator
-DATA_ROOT = "."          # Folder containing 'Images' folder and 'hidden_test.csv'
-SUBMISSION_DIR = "."
+DATA_ROOT = "/submission_system/"          # Folder containing 'Images' folder and 'hidden_test.csv'
+SUBMISSION_DIR = "/submission_system/"
 
 # We assume the CSV is named 'hidden_test.csv' inside the data folder
 TEST_CSV_PATH = os.path.join(DATA_ROOT, "hidden_test.csv")
