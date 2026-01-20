@@ -1,9 +1,7 @@
+import re
 import torch
 import torch.nn as nn
 from torchvision import transforms, models
-import string
-import os
-import json
 
 def get_transform():
     return transforms.Compose([
@@ -14,102 +12,93 @@ def get_transform():
 
 
 class SubmissionModel(nn.Module):
-    def __init__(self, vocab_size=None):
+    def __init__(self):
         super().__init__()
-        
+
         resnet = models.resnet50(weights=None)
-        self.vision_encoder = nn.Sequential(*list(resnet.children())[:-2])
+        self.image_encoder = nn.Sequential(*list(resnet.children())[:-2])
 
-        self.vocab = None
-        self._load_vocab()
-        
-        if self.vocab is None:
-            self.vocab = {'<pad>': 0, '<unk>': 1}
-        
-        if vocab_size is None:
-            self.vocab_size = len(self.vocab)
-        else:
-            self.vocab_size = vocab_size
-            
-        for param in self.vision_encoder.parameters():
-            param.requires_grad = False
-            
-        for param in self.vision_encoder[-1].parameters():
-            param.requires_grad = True
-            
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1)) 
+        for p in self.image_encoder.parameters():
+            p.requires_grad = False
+        for p in self.image_encoder[-1].parameters():
+            p.requires_grad = True
 
-        self.embedding_dim = 128
-        self.hidden_dim = 256
-        self.embedding = nn.Embedding(self.vocab_size, self.embedding_dim)
-        self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim, batch_first=True)
-        
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+
         self.image_projector = nn.Sequential(
             nn.Linear(2048, 512),
             nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Dropout(0.3)
+            nn.ReLU(inplace=True)
         )
-        
-        self.text_projector = nn.Sequential(
-            nn.Linear(self.hidden_dim, 512),
+
+        self.vocab_size = 20000
+        self.max_len = 20
+
+        self.embedding_dim = 256
+        self.hidden_dim = 256
+
+        self.embedding = nn.Embedding(
+            self.vocab_size,
+            self.embedding_dim,
+            padding_idx=0
+        )
+
+        self.lstm = nn.LSTM(
+            input_size=self.embedding_dim,
+            hidden_size=self.hidden_dim,
+            batch_first=True,
+            bidirectional=True
+        )
+
+        self.text_fc = nn.Sequential(
+            nn.Linear(self.hidden_dim * 2, 512),
             nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Dropout(0.3)
+            nn.ReLU(inplace=True)
         )
-        
+
         self.classifier = nn.Sequential(
-            nn.Linear(1024, 256),
-            nn.ReLU(),
-            nn.Dropout(0.4), 
-            nn.Linear(256, 1),
-            nn.Sigmoid()  
+            nn.Linear(1024, 512),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.3),
+            nn.Linear(512, 1),
+            nn.Sigmoid()
         )
 
-        self.max_len = 40
+    def _tokenize_text(self, text):
+        import re
+        text = re.sub(r'[^a-zA-Z\s]', '', text.lower())
+        words = text.split()[:self.max_len]
 
-    def _load_vocab(self):
-        SUBMISSION_DIR = os.path.dirname(os.path.abspath(__file__))
-        vocab_path = os.path.join(SUBMISSION_DIR, 'vocab.json')
-        if os.path.exists(vocab_path):
-            with open(vocab_path) as f:
-                self.vocab = json.load(f)
-        
-    def _clean_and_tokenize(self, text):
-        text = str(text).lower()
-        text = text.translate(str.maketrans('', '', string.punctuation))
-        return text.split()
-            
-    def _text_to_sequence(self, text):
-        sequence = [self.vocab.get(word, self.vocab['<unk>']) for word in self._clean_and_tokenize(text)]
-        
-        if len(sequence) < self.max_len:
-            sequence.extend([self.vocab['<pad>']] * (self.max_len - len(sequence)))
-        elif len(sequence) > self.max_len:
-            sequence = sequence[:self.max_len]
-        return sequence
-    
-    def forward(self, images, captions):
-        x_img = self.vision_encoder(images)      
-        x_img = self.avgpool(x_img).flatten(1)   
-        x_img = self.image_projector(x_img)      
-        
-        embedded = self.embedding(captions)      
-        lstm_out, _ = self.lstm(embedded)        
-       
-        x_txt = torch.mean(lstm_out, dim=1)      
-        x_txt = self.text_projector(x_txt)       
-        
-        combined = torch.cat((x_img, x_txt), dim=1) 
-        
-        scores = self.classifier(combined).squeeze(-1)
-        return scores
-    
+        ids = [hash(w) % self.vocab_size for w in words]
+        if len(ids) < self.max_len:
+            ids.extend([0] * (self.max_len - len(ids)))
+
+        return torch.tensor(ids, dtype=torch.long)
+
+
+    def forward(self, images, texts):
+        device = images.device
+
+        img_feat = self.image_encoder(images)
+        img_feat = self.avgpool(img_feat).flatten(1)
+        img_feat = self.image_projector(img_feat)
+
+        token_batch = torch.stack(
+            [self._tokenize_text(t) for t in texts]
+        ).to(device)
+
+        emb = self.embedding(token_batch)
+        _, (h, _) = self.lstm(emb)
+        text_feat = torch.cat([h[-2], h[-1]], dim=1)
+        text_feat = self.text_fc(text_feat)
+
+        out = self.classifier(torch.cat([img_feat, text_feat], dim=1))
+        return out.squeeze(1)
+
     def predict(self, image_tensor, text_string):
         self.eval()
         with torch.no_grad():
             image_batch = image_tensor.unsqueeze(0)
-            sequence = torch.tensor(self._text_to_sequence(text_string), dtype=torch.long, device=image_tensor.device).unsqueeze(0)
-            score = self.forward(image_batch, sequence)
+
+            score = self.forward(image_batch, [text_string])
             return score.item()
-        
