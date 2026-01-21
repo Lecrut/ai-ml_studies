@@ -30,6 +30,21 @@
 			<parents>Alarm</parents>
 			<probabilities>0.9 0.1 0.5 0.5</probabilities>
 		</cpt>
+		<decision id="Action">
+			<state id="Nothinkg" />
+			<state id="Home" />
+			<state id="Police" />
+		</decision>
+		<cpt id="catching_a_thief">
+			<state id="True" />
+			<state id="False" />
+			<parents>Burglary Action</parents>
+			<probabilities>0 1 0.3 0.7 0.9 0.1 0 1 0 1 0 1</probabilities>
+		</cpt>
+		<utility id="Utility">
+			<parents>catching_a_thief Action</parents>
+			<utilities>10 9 8 0 -1 -2</utilities>
+		</utility>
 	</nodes>
 	<extensions>
 		<genie version="1.0" app="GeNIe 5.0.5310.0 ACADEMIC" name="Network1">
@@ -38,35 +53,56 @@
 				<interior color="e5f6f7" />
 				<outline color="000080" />
 				<font color="000000" name="Arial" size="8" />
-				<position>91 143 147 178</position>
+				<position>180 167 236 202</position>
 			</node>
 			<node id="Earthquake">
 				<name>Earthquake</name>
 				<interior color="e5f6f7" />
 				<outline color="000080" />
 				<font color="000000" name="Arial" size="8" />
-				<position>261 141 329 183</position>
+				<position>327 155 395 197</position>
 			</node>
 			<node id="Alarm">
 				<name>Alarm</name>
 				<interior color="e5f6f7" />
 				<outline color="000080" />
 				<font color="000000" name="Arial" size="8" />
-				<position>206 303 252 331</position>
+				<position>268 300 314 328</position>
 			</node>
 			<node id="Radio_news">
 				<name>Radio news</name>
 				<interior color="e5f6f7" />
 				<outline color="000080" />
 				<font color="000000" name="Arial" size="8" />
-				<position>351 299 422 343</position>
+				<position>401 291 472 335</position>
 			</node>
 			<node id="Phone_from_Watson">
 				<name>Phone from Watson</name>
 				<interior color="e5f6f7" />
 				<outline color="000080" />
 				<font color="000000" name="Arial" size="8" />
-				<position>179 416 283 481</position>
+				<position>272 415 376 480</position>
+			</node>
+			<node id="Action">
+				<name>Action</name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>22 222 90 265</position>
+			</node>
+			<node id="catching_a_thief">
+				<name>catching a thief</name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>107 307 193 360</position>
+			</node>
+			<node id="Utility">
+				<name>Utility</name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>92 468 137 500</position>
 			</node>
 		</genie>
 	</extensions>
