@@ -142,7 +142,7 @@ def main():
         if epoch_acc > best_acc:
             print(f" >>> New Best Accuracy! ({best_acc:.4f} -> {epoch_acc:.4f}). Saving model...")
             best_acc = epoch_acc
-            torch.save(model.state_dict(), "best_weights.pth")
+            torch.save(model.state_dict(), "weights.pth")
         else:
             print(f" ... Accuracy did not improve (Best: {best_acc:.4f})")
 
