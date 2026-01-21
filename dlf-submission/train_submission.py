@@ -6,22 +6,23 @@ from torchvision import transforms, models
 from PIL import Image
 import pandas as pd
 from tqdm import tqdm
+# Zmieniony import na standardowy torch
+import torch.amp 
 
+# Zakładam, że plik model.py jest w tym samym folderze
 from model import SubmissionModel
-
 
 # =====================
 # CONFIG
 # =====================
 DATA_DIR = r"c:\Users\Filip\Documents\mgr-siium\deep_learning_fundamentals\ex_1"
-CSV_FILE = os.path.join(DATA_DIR, "captions_flickr8k_with_false.csv")
+CSV_FILE = os.path.join(DATA_DIR, "captions_flickr8k_with_false_fixed.csv")
 IMG_DIR = os.path.join(DATA_DIR, "datasets")
 
-BATCH_SIZE = 32
+BATCH_SIZE = 128
 EPOCHS = 20
 LR = 1e-4
-NUM_WORKERS = 4
-
+NUM_WORKERS = int(os.cpu_count() * 0.75)
 
 # =====================
 # DATASET
@@ -36,7 +37,6 @@ class FlickrDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
-
         img_path = row["image_path"]
         if img_path.startswith("datasets/"):
             img_path = img_path[len("datasets/"):]
@@ -44,18 +44,18 @@ class FlickrDataset(Dataset):
 
         image = Image.open(img_path).convert("RGB")
         image = self.transform(image)
-
+        
         caption = str(row["caption"])
         label = torch.tensor(float(row["label"]), dtype=torch.float32)
 
         return image, caption, label
 
-
 # =====================
-# TRAIN
+# MAIN LOOP
 # =====================
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.backends.cudnn.benchmark = True 
     print("Device:", device)
 
     df = pd.read_csv(CSV_FILE)
@@ -63,26 +63,22 @@ def main():
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
-        transforms.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225]
-        )
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
     dataset = FlickrDataset(df, transform)
+    
     loader = DataLoader(
         dataset,
         batch_size=BATCH_SIZE,
         shuffle=True,
         num_workers=NUM_WORKERS,
-        pin_memory=True
+        pin_memory=True,
+        persistent_workers=True
     )
 
     model = SubmissionModel().to(device)
 
-    # ===================================================
-    # LOAD IMAGENET → ZOSTANIE ZAPISANE W weights.pth
-    # ===================================================
     print("Loading ImageNet weights...")
     pretrained = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
     pretrained_layers = nn.Sequential(*list(pretrained.children())[:-2])
@@ -91,30 +87,66 @@ def main():
 
     criterion = nn.BCELoss()
     optimizer = torch.optim.AdamW(
-        filter(lambda p: p.requires_grad, model.parameters()),
+        filter(lambda p: p.requires_grad, model.parameters()), 
         lr=LR
     )
+
+    scaler = torch.cuda.amp.GradScaler()
+
+    best_acc = 0.0
 
     model.train()
     for epoch in range(EPOCHS):
         total_loss = 0.0
-        for images, captions, labels in tqdm(loader, desc=f"Epoch {epoch+1}/{EPOCHS}"):
+        correct_predictions = 0
+        total_samples = 0
+        
+        loop = tqdm(loader, desc=f"Epoch {epoch+1}/{EPOCHS}")
+
+        for images, captions, labels in loop:
             images = images.to(device, non_blocking=True)
             labels = labels.to(device, non_blocking=True)
 
             optimizer.zero_grad()
-            outputs = model(images, list(captions))
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
+
+            # 1. Autocast tylko dla forward pass (obliczenia modelu)
+            with torch.amp.autocast('cuda'):
+                outputs = model(images, list(captions))
+                outputs = outputs.squeeze()
+            
+            # 2. FIX: Wychodzimy z autocast i rzutujemy na float32 dla BCELoss
+            # To zapobiega błędowi "unsafe to autocast"
+            loss = criterion(outputs.float(), labels.float())
+
+            # 3. Skalowanie gradientów
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
             total_loss += loss.item()
 
-        print(f"Epoch {epoch+1} | loss: {total_loss / len(loader):.4f}")
+            # --- ACCURACY ---
+            # Ponieważ BCELoss działa na prawdopodobieństwach (Sigmoid), próg to 0.5
+            predicted = (outputs > 0.5).float()
+            correct_predictions += (predicted == labels).sum().item()
+            total_samples += labels.size(0)
 
-    torch.save(model.state_dict(), "weights.pth")
-    print("Saved weights.pth")
+            loop.set_postfix(loss=loss.item())
 
+        # Podsumowanie epoki
+        epoch_loss = total_loss / len(loader)
+        epoch_acc = correct_predictions / total_samples
+
+        print(f"Epoch {epoch+1} summary | Loss: {epoch_loss:.4f} | Acc: {epoch_acc:.4f}")
+
+        if epoch_acc > best_acc:
+            print(f" >>> New Best Accuracy! ({best_acc:.4f} -> {epoch_acc:.4f}). Saving model...")
+            best_acc = epoch_acc
+            torch.save(model.state_dict(), "best_weights.pth")
+        else:
+            print(f" ... Accuracy did not improve (Best: {best_acc:.4f})")
+
+    print("Training complete.")
 
 if __name__ == "__main__":
     main()
