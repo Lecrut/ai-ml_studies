@@ -19,10 +19,10 @@ DATA_DIR = r"c:\Users\Filip\Documents\mgr-siium\deep_learning_fundamentals\ex_1"
 CSV_FILE = os.path.join(DATA_DIR, "captions_155k.csv")
 IMG_DIR = os.path.join(DATA_DIR, "datasets")
 
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 EPOCHS = 15
 LR = 1e-4
-NUM_WORKERS = int(os.cpu_count() * 0.75)
+NUM_WORKERS = int(os.cpu_count() * 0.8)
 
 # =====================
 # DATASET
@@ -73,8 +73,9 @@ def main():
         batch_size=BATCH_SIZE,
         shuffle=True,
         num_workers=NUM_WORKERS,
-        pin_memory=True,
-        persistent_workers=True
+        pin_memory=True,         
+        persistent_workers=True, 
+        prefetch_factor=2       
     )
 
     model = SubmissionModel().to(device)
@@ -107,7 +108,7 @@ def main():
             images = images.to(device, non_blocking=True)
             labels = labels.to(device, non_blocking=True)
 
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
 
             # 1. Autocast tylko dla forward pass (obliczenia modelu)
             with torch.amp.autocast('cuda'):
