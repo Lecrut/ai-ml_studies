@@ -16,11 +16,11 @@ from model import SubmissionModel
 # CONFIG
 # =====================
 DATA_DIR = r"c:\Users\Filip\Documents\mgr-siium\deep_learning_fundamentals\ex_1"
-CSV_FILE = os.path.join(DATA_DIR, "captions_flickr8k_with_false_fixed.csv")
+CSV_FILE = os.path.join(DATA_DIR, "captions_155k.csv")
 IMG_DIR = os.path.join(DATA_DIR, "datasets")
 
-BATCH_SIZE = 128
-EPOCHS = 20
+BATCH_SIZE = 32
+EPOCHS = 15
 LR = 1e-4
 NUM_WORKERS = int(os.cpu_count() * 0.75)
 
