@@ -20,7 +20,7 @@ CSV_FILE = os.path.join(DATA_DIR, "captions_155k.csv")
 IMG_DIR = os.path.join(DATA_DIR, "datasets")
 
 BATCH_SIZE = 64
-EPOCHS = 15
+EPOCHS = 20
 LR = 1e-4
 NUM_WORKERS = int(os.cpu_count() * 0.8)
 
