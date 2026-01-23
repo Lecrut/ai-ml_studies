@@ -6,38 +6,37 @@ import numpy as np
 import os
 
 #%% Approximation function
-def approximation_function(state):
-    dists_walls = np.array(state[0], dtype=np.float32).flatten() / 500.0
-    dists_cars = np.array(state[1], dtype=np.float32).flatten() / 500.0
+def approximation_function(state):    
+    dists_walls = np.array(state[0], dtype=np.float32).flatten() / 1000.0
     
-    checkpoint_idx = np.array([state[2][0] / 100.0], dtype=np.float32)
+    dists_cars = np.array(state[1], dtype=np.float32).flatten() / 300.0
+    
+    total_cps = len(state[3])
+    if total_cps == 0: total_cps = 1.0 
+    
+    cp_index = np.array([state[2][0] / float(total_cps)], dtype=np.float32)
+        
     speed = np.array([state[4]], dtype=np.float32).flatten()
 
-    return np.concatenate([dists_walls, dists_cars, checkpoint_idx, speed])
+    return np.concatenate([dists_walls, dists_cars, cp_index, speed])
 
-#%% Dueling DQN Model
-class DuelingDQN(nn.Module):
-    def __init__(self, input_size=18, output_size=5):
-        super(DuelingDQN, self).__init__()
-
-        self.feature_layer = nn.Sequential(
-            nn.Linear(input_size, 128),
+#%% Standard DQN Model
+class MyModel(nn.Module):
+    def __init__(self, input_size=18, output_size=5): 
+        super(MyModel, self).__init__()
+        
+        self.net = nn.Sequential(
+            nn.Linear(input_size, 256),
             nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU()
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, output_size)
         )
-        
-        self.value_stream = nn.Linear(128, 1)
-        
-
-        self.advantage_stream = nn.Linear(128, output_size)
 
     def forward(self, x):
-        features = self.feature_layer(x)
-        values = self.value_stream(features)
-        advantages = self.advantage_stream(features)
-
-        return values + (advantages - advantages.mean(dim=1, keepdim=True))
+        return self.net(x)
 
 #%% MyAgent Class
 class MyAgent:
@@ -46,9 +45,10 @@ class MyAgent:
         self.path = "records/race_model.pth" 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        self.model = DuelingDQN(input_size=18, output_size=5).to(self.device)
+        self.model = MyModel(input_size=18, output_size=5).to(self.device)
+        
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.001) 
-        self.criterion = nn.SmoothL1Loss()
+        self.criterion = nn.MSELoss() 
 
     def fit(self, X, y):
         self.model.train()
@@ -81,9 +81,9 @@ class MyAgent:
             return self.model(features_tensor).cpu().numpy()
     
     def save(self, current_reward):
-        print(f"\n    Aktualny najlepszy wynik: {self.best_reward:.1f} i podany wynik: {current_reward:.1f}.")
+        print(f"\n    [SAVE] Aktualny wynik: {current_reward:.1f} (Rekord: {self.best_reward:.1f})")
         if current_reward >= self.best_reward:
-            print(f"    Nowy najlepszy wynik! Zapisuję model.")
+            print(f"    >>> NOWY REKORD! Zapisuję model.")
             self.best_reward = current_reward
             save_data = {
                 "model_state": self.model.state_dict(),
@@ -92,8 +92,6 @@ class MyAgent:
             }
             os.makedirs('records', exist_ok=True)
             torch.save(save_data, self.path)
-        else:
-            print("    Wynik nie poprawiony. Model nie został zapisany.")
 
     def load(self):
         if os.path.exists(self.path):
@@ -101,14 +99,11 @@ class MyAgent:
             self.model.load_state_dict(checkpoint["model_state"])
             self.optimizer.load_state_dict(checkpoint["optimizer_state"])
             self.best_reward = checkpoint.get("best_reward", 0)
-            print(f"    Załadowano model z najlepszym wynikiem: {self.best_reward:.1f}.")
+            print(f"    Załadowano model. Best Reward: {self.best_reward:.1f}.")
             return True, self.best_reward
-        else:
-            print("    Brak zapisanego modelu do załadowania.")
-        
         return False, None
     
-    def smaller_learning_rate(self, factor=0.7):
+    def smaller_learning_rate(self, factor=0.9):
         for param_group in self.optimizer.param_groups:
             param_group['lr'] *= factor
-        print(f"    Zmniejszono współczynnik uczenia. Nowy lr: {self.optimizer.param_groups[0]['lr']:.6f}")
+        print(f"    Zmniejszono LR. Nowy: {self.optimizer.param_groups[0]['lr']:.6f}")
