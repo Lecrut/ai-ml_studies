@@ -99,9 +99,6 @@ class Game:
         elif len(self.cars) == 3:
             car.set_image(PURPLE_CAR)
             car.set_position((150, 160))
-        else :
-            car.set_image(RED_CAR)
-            car.set_position((180, 200))
 
         car.reset()
         self.cars.append(car)
@@ -292,202 +289,12 @@ class PlayerCar2(AbstractCar):
         actions = ["forward", "backward", "left", "right", "stop"]
         return actions[action_index]
     
-
-def train_agent(num_episodes=2000,
-                epsilon_start=1.0,
-                batch_size=256,        
-                epsilon_decay_steps=1000,
-                frame_skip=2
-                ):
-
-    # --- KONFIGURACJA ---
-    RWD_WALL = -2.0           
-    RWD_IDLE = -5.0          
-    RWD_CHECKPOINT = 40.0     
-    RWD_FINISH = 200.0        
-    RWD_SPEED = 2.0           
-    
-    CARS_TRAINING = 20  
-    CARS_VALIDATION = 4 
-
-    class TrainingCar(AbstractCar):
-        def __init__(self, name, agent_model, epsilon_val):
-            super().__init__(name)
-            self.agent = agent_model
-            self.epsilon = epsilon_val
-            self.last_checkpoint = 0
-            self.total_reward = 0
-            self.frames_stuck = 0
-            self.current_action_idx = 0 
-            self.cached_state = None 
-
-        def choose_action_idx(self, state):
-            if random.random() < self.epsilon:
-                return random.randint(0, 4)
-            return int(np.argmax(self.agent.predict(state)))
-        
-        def choose_action(self, state):
-            actions = ["forward", "backward", "left", "right", "stop"]
-            return actions[self.current_action_idx]
-        
-        def get_state(self, game_cars, track_mask, checkpoints):
-            _, distances = self.get_rays_and_distances(track_mask)
-            car_distances = self.get_distances_to_cars(game_cars)
-            return [distances, car_distances, self.get_progress(), checkpoints, self.vel / self.max_vel]
-
-    agent = MyAgent()
-    is_loaded, _ = agent.load()
-    target_agent = copy.deepcopy(agent)
-    
-    replay_buffer = deque(maxlen=40000)
-    gamma = 0.95 
-    
-    iterator = trange(num_episodes, desc="Trening")
-    
-    for episode in iterator:
-        if is_loaded:
-            epsilon = max(0.05, epsilon_start * (0.995 ** episode))
-        else:
-            ratio = min(1.0, episode / epsilon_decay_steps)
-            epsilon = epsilon_start * (1.0 - ratio) + 0.05 * ratio
-
-        is_validation = (episode % 20 == 0) and (episode > 0)
-        current_num_cars = CARS_VALIDATION if is_validation else CARS_TRAINING
-        
-        game = Game(WIDTH, HEIGHT, fps=60, render=is_validation)
-        
-        cars = []
-        
-        for i in range(current_num_cars): 
-            eps = 0.0 if is_validation else epsilon
-            car = TrainingCar(f"AI_{i}", agent, eps)
-            game.add_car(car)
-            
-            if is_validation:
-                car.x, car.y = (170 + i * 10, 200 - i * 10) 
-                car.angle = 0
-                car.checkpoint_index = 0
-                car.last_checkpoint = 0
-            else:
-                spawn_idx = random.randint(0, len(CHECKPOINTS) - 3)
-                pos = CHECKPOINTS[spawn_idx]
-                next_pos = CHECKPOINTS[spawn_idx+1]
-                dx, dy = next_pos[0] - pos[0], next_pos[1] - pos[1]
-                angle = math.degrees(math.atan2(dy, dx))
-                
-                car.x = pos[0] + random.randint(-10, 10)
-                car.y = pos[1] + random.randint(-10, 10)
-                car.angle = 270 - angle 
-                car.checkpoint_index = spawn_idx
-                car.last_checkpoint = spawn_idx
-            
-            car.cached_state = car.get_state(game.cars, TRACK_BORDER_MASK, CHECKPOINTS)
-            cars.append(car)
-
-        step = 0
-        active_cars = True
-        max_steps = 2000 if is_validation else 600
-        
-        while active_cars and step < max_steps: 
-            if game.render:
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT: pygame.quit(); return
-
-            for car in cars:
-                if car not in game.cars: continue
-                if step % frame_skip == 0:
-                    action_idx = car.choose_action_idx(car.cached_state)
-                    car.current_action_idx = action_idx
-            
-            game.move_cars()
-            game.check_collisions()
-            game.check_finish_line()
-
-            if game.render: game.draw()
-
-            if step % frame_skip == 0:
-                for car in cars:
-                    if car not in game.cars: continue
-
-                    next_state = car.get_state(game.cars, TRACK_BORDER_MASK, CHECKPOINTS)
-                    reward = 0
-                    done = False
-                    
-                    if car.checkpoint_index > car.last_checkpoint:
-                        reward += RWD_CHECKPOINT
-                        car.last_checkpoint = car.checkpoint_index
-                        car.frames_stuck = 0
-                        if car.checkpoint_index >= len(CHECKPOINTS) - 2:
-                            reward += RWD_FINISH
-                            done = True
-                    else:
-                        car.frames_stuck += frame_skip
-                        
-                    norm_vel = car.vel / car.max_vel
-                    if norm_vel > 0.1: reward += norm_vel * RWD_SPEED
-                    else: reward += RWD_IDLE
-
-                    if car.collide(TRACK_BORDER_MASK):
-                        reward += RWD_WALL
-                        done = True
-
-                    if car.frames_stuck > 50:
-                        reward += RWD_IDLE
-                        done = True
-
-                    car.total_reward += reward
-                    
-                    if not is_validation:
-                        replay_buffer.append((car.cached_state, car.current_action_idx, reward, next_state, done))
-                    
-                    car.cached_state = next_state
-                    
-                    if done:
-                        game.cars.remove(car)
-
-            if not is_validation and len(replay_buffer) > batch_size and step % 5 == 0:
-                batch = random.sample(replay_buffer, batch_size)
-                states = np.array([x[0] for x in batch], dtype=object)
-                actions = np.array([x[1] for x in batch])
-                rewards = np.array([x[2] for x in batch], dtype=np.float32)
-                next_states = np.array([x[3] for x in batch], dtype=object)
-                dones = np.array([x[4] for x in batch], dtype=np.float32)
-
-                current_qs = agent.predict_batch(states)
-                next_qs = target_agent.predict_batch(next_states)
-                max_next_qs = np.max(next_qs, axis=1)
-                target_qs = rewards + (1 - dones) * gamma * max_next_qs
-                
-                target_vals = current_qs.copy()
-                rows = np.arange(batch_size)
-                target_vals[rows, actions] = target_qs
-                
-                agent.fit(states, target_vals)
-
-            if not is_validation and step % 100 == 0:
-                target_agent = copy.deepcopy(agent)
-            
-            step += 1
-            if len(game.cars) == 0: active_cars = False
-
-        if len(cars) > 0:
-            max_reward = max([c.total_reward for c in cars])
-            mode_str = "WALIDACJA" if is_validation else "Trening"
-            iterator.set_description(f"[{mode_str}] Best: {max_reward:.0f} | Eps: {epsilon:.2f}")
-            
-            if is_validation and max_reward > agent.best_reward:
-                agent.save(max_reward)
-
-    agent.save(agent.best_reward)
-    pygame.quit()
-
-
 def main():
     final_results = dict()
 
     #initializing players - it is possible to play up to 4 players together
     # players = [PlayerCar("P1"), PlayerCar2("P2"), PlayerCar("P1"), PlayerCar2("P2")]
-    players = [PlayerCar2("AI_1"), PlayerCar2("AI_2"), PlayerCar2("AI_3"), PlayerCar2("AI_4")]
+    players = [PlayerCar2("AI_1"), PlayerCar2("AI_2")] #, PlayerCar2("AI_3"), PlayerCar2("AI_4")]
 
     for p in players:
         final_results[p.get_name()] = 0
@@ -517,6 +324,4 @@ def main():
     print(final_results)
 
 if __name__ == "__main__":
-    train_agent()
-
     main()
