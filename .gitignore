@@ -6,10 +6,8 @@
 /pum/Datasets/FlapPyBird/
 **/.ipynb_checkpoints/
 *.7z
-/wyklad-swad/
-/wyklady-pum/
+/wyklady/
 /metody_optymalizacji/
 /pum/Datasets/NASA_JPL_asteroid.csv
-/wykłady_amum/
 __pycache__/
 .idea/
