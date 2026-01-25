@@ -294,7 +294,7 @@ def main():
 
     #initializing players - it is possible to play up to 4 players together
     # players = [PlayerCar("P1"), PlayerCar2("P2"), PlayerCar("P1"), PlayerCar2("P2")]
-    players = [PlayerCar2("AI_1"), PlayerCar2("AI_2")] #, PlayerCar2("AI_3"), PlayerCar2("AI_4")]
+    players = [PlayerCar2("AI_1"), PlayerCar2("AI_2"), PlayerCar2("AI_3"), PlayerCar2("AI_4")]
 
     for p in players:
         final_results[p.get_name()] = 0
