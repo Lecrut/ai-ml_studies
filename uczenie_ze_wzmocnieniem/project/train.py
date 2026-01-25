@@ -85,7 +85,7 @@ class HeadlessCar(AbstractCar):
 
     def draw(self, win): pass
 
-def train_headless(num_episodes=6000):
+def train_headless(num_episodes=3000):
     BATCH_SIZE = 512
     GAMMA = 0.99            
     FRAME_SKIP = 2
@@ -93,13 +93,17 @@ def train_headless(num_episodes=6000):
 
     EPSILON_START = 1.0
     EPSILON_MIN = 0.05
-    EPSILON_DECAY_STEPS = 2500 
+    
+    EPSILON_DECAY_FRAC = 0.75
+    decay_steps = int(num_episodes * EPSILON_DECAY_FRAC)
 
     CHECKPOINT_TIMEOUT = 200
 
     NUM_CARS_TRAIN = 15
     NUM_CARS_VALID = 4
     VALIDATION_EVERY = 50
+    
+    FINE_TUNING_PCT = 0.1
 
     START_POSITIONS = [(180, 200), (150, 200), (180, 160), (150, 160)]
 
@@ -111,7 +115,6 @@ def train_headless(num_episodes=6000):
     RWD_DELTA_PROGRESS = 5.0 
     RWD_WRONG_WAY = -0.5    
     RWD_STEER_IDLE = -0.05   
-    RWD_NEAR_CAR = -0.05      
 
     agent = MyAgent()
     is_loaded, _ = agent.load()
@@ -123,23 +126,28 @@ def train_headless(num_episodes=6000):
     pbar = tqdm(range(num_episodes), desc="Training")
 
     for episode in pbar:
+        is_finetuning = episode >= (num_episodes * (1.0 - FINE_TUNING_PCT))
         is_validation = (episode % VALIDATION_EVERY == 0 and episode > 0)
 
         if is_validation:
             epsilon = 0.0
         else:
-            progress = min(1.0, episode / EPSILON_DECAY_STEPS)
+            progress = min(1.0, episode / decay_steps)
             epsilon = EPSILON_START - (progress * (EPSILON_START - EPSILON_MIN))
 
         cars = []
-        num_cars = NUM_CARS_VALID if is_validation else NUM_CARS_TRAIN
+        
+        if is_validation or is_finetuning:
+            num_cars = NUM_CARS_VALID
+        else:
+            num_cars = NUM_CARS_TRAIN
 
         for i in range(num_cars):
             img = CAR_IMAGES[i % len(CAR_IMAGES)]
             car = HeadlessCar(f"AI_{i}", agent, epsilon, img)
             car.frames_since_checkpoint = 0
             
-            if is_validation:
+            if is_validation or is_finetuning:
                 car.x, car.y = START_POSITIONS[i % len(START_POSITIONS)]
                 car.angle = 0
                 car.checkpoint_index = 0
@@ -147,7 +155,9 @@ def train_headless(num_episodes=6000):
                 car.prev_total_progress = 0.0 
             else:
                 safe_max_idx = len(CHECKPOINTS) - 2
-                progress_ratio = min(1.0, episode / 1500.0)
+                curriculum_steps = int(num_episodes * 0.5)
+                progress_ratio = min(1.0, episode / curriculum_steps)
+                
                 max_spawn = int(safe_max_idx * progress_ratio)
                 spawn_limit = min(max(5, max_spawn), safe_max_idx)
                 
@@ -264,8 +274,12 @@ def train_headless(num_episodes=6000):
             step += 1
 
         best = max(c.total_reward for c in cars) if cars else 0
-        mode = "VAL" if is_validation else "TRN"
-        pbar.set_description(f"[{mode}] Best: {best:.2f} | eps: {epsilon:.2f}")
+        
+        if is_validation: status = "VAL"
+        elif is_finetuning: status = "FINE"
+        else: status = "TRN"
+            
+        pbar.set_description(f"[{status}] Best: {best:.2f} | eps: {epsilon:.2f}")
 
         if is_validation:
             if best > best_validation_reward:
