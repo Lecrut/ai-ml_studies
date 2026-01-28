@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- This network was created in GeNIe Academic, which can be used for academic teaching and research purposes only -->
+<smile version="1.0" id="Network1" numsamples="10000" discsamples="10000">
+	<nodes>
+		<cpt id="Burglary">
+			<state id="True" />
+			<state id="False" />
+			<probabilities>5e-05 0.99995</probabilities>
+		</cpt>
+		<cpt id="Earthquake">
+			<state id="True" />
+			<state id="False" />
+			<probabilities>0.008200000000000001 0.9918</probabilities>
+		</cpt>
+		<cpt id="Alarm">
+			<state id="True" />
+			<state id="False" />
+			<parents>Burglary Earthquake</parents>
+			<probabilities>0.9689555125725339 0.03104448742746615 0.9357715430861723 0.06422845691382764 0.01561904761904762 0.9843809523809522 0.008855291576673866 0.9911447084233261</probabilities>
+		</cpt>
+		<cpt id="Radio_news">
+			<state id="True" />
+			<state id="False" />
+			<parents>Earthquake</parents>
+			<probabilities>1 0 0.1 0.9</probabilities>
+		</cpt>
+		<cpt id="Phone_from_Watson">
+			<state id="True" />
+			<state id="False" />
+			<parents>Alarm</parents>
+			<probabilities>0.9 0.1 0.5 0.5</probabilities>
+		</cpt>
+	</nodes>
+	<extensions>
+		<genie version="1.0" app="GeNIe 5.0.5310.0 ACADEMIC" name="Network1">
+			<node id="Burglary">
+				<name>Burglary</name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>158 179 214 214</position>
+			</node>
+			<node id="Earthquake">
+				<name>Earthquake</name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>305 167 373 209</position>
+			</node>
+			<node id="Alarm">
+				<name>Alarm</name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>246 312 292 340</position>
+			</node>
+			<node id="Radio_news">
+				<name>Radio news</name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>379 303 450 347</position>
+			</node>
+			<node id="Phone_from_Watson">
+				<name>Phone from Watson</name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>250 427 354 492</position>
+			</node>
+		</genie>
+	</extensions>
+</smile>
