@@ -1,5 +1,9 @@
 import pygame
 from abstract_car import AbstractCar
+from Jvsin_Racing_Team import MyAgentPiotr
+from DuelingDQNAgent import DuelingDQNAgent
+from state_to_features import get_state_features
+from race_Darek import PlayerCarSensorsProgressMinimumSensorsValuesAndVelocity
 from utils import scale_image
 from itertools import permutations
 import numpy as np
@@ -43,7 +47,7 @@ track_path =  [(175, 119), (110, 70), (56, 133), (70, 481), (318, 731), (404, 68
 
 
 # Interpolate evenly spaced checkpoints
-def generate_checkpoints(track_path, num_checkpoints=100):
+def generate_checkpoints(track_path, num_checkpoints=80):
     checkpoints = []
     for i in range(len(track_path) - 1):
         x1, y1 = track_path[i]
@@ -274,7 +278,7 @@ class PlayerCar2(AbstractCar):
         # else:
         #     return "stop"
 
-class PlayerCar2(AbstractCar):
+class PlayerCarFilip(AbstractCar):
     def __init__(self, name):
         super().__init__(name)
         car_agent = MyAgent()
@@ -289,12 +293,64 @@ class PlayerCar2(AbstractCar):
         actions = ["forward", "backward", "left", "right", "stop"]
         return actions[action_index]
     
+
+class Jvsin_Racing_Team(AbstractCar):
+    def __init__(self, name):
+        super().__init__(name) 
+        self.agent = MyAgentPiotr()
+        self.agent.load()
+
+    def choose_action(self, state):
+        full_state = [
+            state[0],
+            state[1],
+            state[2],
+            CHECKPOINTS,
+            self.vel
+        ]
+        
+        q_values = self.agent.predict(full_state)
+        action_idx = np.argmax(q_values)
+        
+        actions = ["forward", "backward", "left", "right", "stop"]
+        return actions[action_idx]
+
+class WojtekCar(AbstractCar):
+    
+    def __init__(self, name, num_features=32, weights_file="dqn_weights.npy"):
+        super().__init__(name)
+        self.action_map = {0: "forward", 1: "backward", 2: "left", 3: "right", 4: "stop"}
+        # self.model = LinearQApproximator(num_features, len(self.action_map))
+        self.model = DuelingDQNAgent(num_features, len(self.action_map))
+        self.model.load(weights_file)
+
+    def choose_action(self, state):
+        """
+        Perform an action based on the input.
+
+        Actions:
+        - "forward": Move the car forward.
+        - "backward": Move the car backward.
+        - "left": Turn the car left.
+        - "right": Turn the car right.
+        - "stop": Reduce the car's speed.
+        """
+        features = get_state_features(self, state)
+        action_idx = self.model.choose_action(features, eval_mode=True)
+        return self.action_map[action_idx]
+
+
 def main():
     final_results = dict()
 
     #initializing players - it is possible to play up to 4 players together
     # players = [PlayerCar("P1"), PlayerCar2("P2"), PlayerCar("P1"), PlayerCar2("P2")]
-    players = [PlayerCar2("AI_1"), PlayerCar2("AI_2"), PlayerCar2("AI_3"), PlayerCar2("AI_4")]
+    players = [
+        Jvsin_Racing_Team("PIOTR"), 
+        PlayerCarSensorsProgressMinimumSensorsValuesAndVelocity('DAREK', outputs=4, load_filename=r'C:\Users\Filip\Documents\mgr-siium\uczenie_ze_wzmocnieniem\project\P2'), 
+        PlayerCarFilip("FILIP"),
+        WojtekCar("WOJTEK", weights_file=r"C:\Users\Filip\Documents\mgr-siium\uczenie_ze_wzmocnieniem\project\multiple_agent_weights.npy")
+        ]
 
     for p in players:
         final_results[p.get_name()] = 0

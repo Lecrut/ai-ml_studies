@@ -1,0 +1,21 @@
+class Jvsin_Racing_Team(AbstractCar):
+    def __init__(self, name):
+        super().__init__(name)
+        from myAgent import MyAgent 
+        self.agent = MyAgent()
+        self.agent.load()
+
+    def choose_action(self, state):
+        full_state = [
+            state[0],
+            state[1],
+            state[2],
+            CHECKPOINTS,
+            self.vel
+        ]
+        
+        q_values = self.agent.predict(full_state)
+        action_idx = np.argmax(q_values)
+        
+        actions = ["forward", "backward", "left", "right", "stop"]
+        return actions[action_idx]

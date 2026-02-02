@@ -1,0 +1,23 @@
+class PlayerCar(AbstractCar):
+
+    def __init__(self, name, num_features=32, weights_file="dqn_weights.npy"):
+        super().__init__(name)
+        self.action_map = {0: "forward", 1: "backward", 2: "left", 3: "right", 4: "stop"}
+        # self.model = LinearQApproximator(num_features, len(self.action_map))
+        self.model = DuelingDQNAgent(num_features, len(self.action_map))
+        self.model.load(weights_file)
+
+    def choose_action(self, state):
+        """
+        Perform an action based on the input.
+
+        Actions:
+        - "forward": Move the car forward.
+        - "backward": Move the car backward.
+        - "left": Turn the car left.
+        - "right": Turn the car right.
+        - "stop": Reduce the car's speed.
+        """
+        features = get_state_features(self, state)
+        action_idx = self.model.choose_action(features, eval_mode=True)
+        return self.action_map[action_idx]
