@@ -6,7 +6,7 @@ from torchvision import transforms, models
 from PIL import Image
 import pandas as pd
 from tqdm import tqdm
-# Zmieniony import na standardowy torch
+import random
 import torch.amp 
 
 # Zakładam, że plik model.py jest w tym samym folderze
@@ -16,7 +16,7 @@ from model import SubmissionModel
 # CONFIG
 # =====================
 DATA_DIR = r"c:\Users\Filip\Documents\mgr-siium\deep_learning_fundamentals\ex_1"
-CSV_FILE = os.path.join(DATA_DIR, "captions_155k.csv")
+CSV_FILE = os.path.join(DATA_DIR, "captions_217k_ultra_dataset.csv")
 IMG_DIR = os.path.join(DATA_DIR, "datasets")
 
 BATCH_SIZE = 64
@@ -36,19 +36,26 @@ class FlickrDataset(Dataset):
         return len(self.df)
 
     def __getitem__(self, idx):
-        row = self.df.iloc[idx]
-        img_path = row["image_path"]
-        if img_path.startswith("datasets/"):
-            img_path = img_path[len("datasets/"):]
-        img_path = os.path.join(IMG_DIR, img_path)
+        while True:
+            row = self.df.iloc[idx]
+            img_path = row["image_path"]
+            
+            if img_path.startswith("datasets/"):
+                img_path = img_path[len("datasets/"):]
+            
+            full_path = os.path.join(IMG_DIR, img_path)
 
-        image = Image.open(img_path).convert("RGB")
-        image = self.transform(image)
-        
-        caption = str(row["caption"])
-        label = torch.tensor(float(row["label"]), dtype=torch.float32)
+            try:
+                image = Image.open(full_path).convert("RGB")
+                image = self.transform(image)
+                caption = str(row["caption"])
+                label = torch.tensor(float(row["label"]), dtype=torch.float32)
 
-        return image, caption, label
+                return image, caption, label
+
+            except (FileNotFoundError, OSError, Exception) as e:
+                print(f"Error loading image {full_path}: {e}. Selecting a new random image.")
+                idx = random.randint(0, len(self.df) - 1)
 
 # =====================
 # MAIN LOOP

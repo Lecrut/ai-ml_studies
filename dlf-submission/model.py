@@ -20,7 +20,7 @@ class SubmissionModel(nn.Module):
         super().__init__()
         
         self.vocab_size = 256  
-        self.max_len = 100     
+        self.max_len = 250
         self.emb_dim = 512     
         
         resnet = models.resnet50(weights=None)
@@ -35,11 +35,11 @@ class SubmissionModel(nn.Module):
             nn.Dropout(0.3)
         )
 
-        self.char_embedding = nn.Embedding(self.vocab_size, 64, padding_idx=0)
+        self.char_embedding = nn.Embedding(self.vocab_size, 128, padding_idx=0)
         
         self.lstm = nn.LSTM(
-            input_size=64,
-            hidden_size=256,
+            input_size=128,
+            hidden_size=512,
             num_layers=2,
             batch_first=True,
             bidirectional=True,
@@ -47,22 +47,22 @@ class SubmissionModel(nn.Module):
         )
 
         self.text_proj = nn.Sequential(
-            nn.Linear(512, self.emb_dim),
+            nn.Linear(1024, self.emb_dim),
             nn.LayerNorm(self.emb_dim),
             nn.ReLU(),
             nn.Dropout(0.3)
         )
 
         self.classifier = nn.Sequential(
-            nn.Linear(self.emb_dim * 2, 256),
+            nn.Linear(self.emb_dim * 2, 512),
             nn.ReLU(),
-            nn.BatchNorm1d(256),
+            nn.BatchNorm1d(512),
             nn.Dropout(0.4),
-            nn.Linear(256, 64),
+            nn.Linear(512, 128),
             nn.ReLU(),
-            nn.BatchNorm1d(64),
+            nn.BatchNorm1d(128),
             nn.Dropout(0.3),
-            nn.Linear(64, 1),
+            nn.Linear(128, 1),
             nn.Sigmoid()
         )
 
@@ -77,7 +77,7 @@ class SubmissionModel(nn.Module):
     
     def forward(self, images, texts):
         device = images.device
-        
+
         text_ids_list = [self._tokenize(t) for t in texts]
         text_ids = torch.stack(text_ids_list).to(device)
 
@@ -86,15 +86,19 @@ class SubmissionModel(nn.Module):
         img_vec = self.img_proj(img)
 
         emb = self.char_embedding(text_ids)
-        lstm_out, _ = self.lstm(emb)
-        text_feat, _ = torch.max(lstm_out, dim=1) 
+        lstm_out, _ = self.lstm(emb)  
+
+        text_max, _ = torch.max(lstm_out, dim=1)
+        text_mean = lstm_out.mean(dim=1)
+        text_feat = text_max + text_mean
+
         txt_vec = self.text_proj(text_feat)
 
         fused = torch.cat([
             img_vec * txt_vec,
             torch.abs(img_vec - txt_vec)
         ], dim=1)
-        
+
         return self.classifier(fused).squeeze(1)
     
     def predict(self, image_tensor, text_string):

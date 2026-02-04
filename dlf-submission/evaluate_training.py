@@ -16,7 +16,7 @@ from model import SubmissionModel
 # CONFIG - takie same jak w train_submission.py
 # =====================
 DATA_DIR = r"c:\Users\Filip\Documents\mgr-siium\deep_learning_fundamentals\ex_1"
-CSV_FILE = os.path.join(DATA_DIR, "captions_155k.csv")
+CSV_FILE = os.path.join(DATA_DIR, "captions_217k_ultra_dataset.csv")
 IMG_DIR = os.path.join(DATA_DIR, "datasets")
 
 BATCH_SIZE = 64
