@@ -21,7 +21,7 @@ CSV_FILE = os.path.join(DATA_DIR, "captions_flickr8k_12_02.csv")
 IMG_DIR = os.path.join(DATA_DIR, "datasets")
 
 BATCH_SIZE = 64
-EPOCHS = 18
+EPOCHS = 20
 LR = 1e-4
 NUM_WORKERS = int(os.cpu_count() * 0.8)
 
@@ -67,7 +67,7 @@ def main():
     print("Device:", device)
 
     df = pd.read_csv(CSV_FILE)
-    df = df.sample(frac=0.5, random_state=42)
+    # df = df.sample(frac=0.5, random_state=42)
 
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
