@@ -16,7 +16,7 @@ from model import SubmissionModel
 # CONFIG
 # =====================
 DATA_DIR = r"c:\Users\Filip\Documents\mgr-siium\deep_learning_fundamentals\ex_1"
-CSV_FILE = os.path.join(DATA_DIR, "captions_217k_ultra_dataset.csv")
+CSV_FILE = os.path.join(DATA_DIR, "captions_flickr8k_12_02.csv")
 IMG_DIR = os.path.join(DATA_DIR, "datasets")
 
 BATCH_SIZE = 64
@@ -86,12 +86,29 @@ def main():
     )
 
     model = SubmissionModel().to(device)
+    
+    WEIGHTS_FILE = "weights_97_72_66.pth"
 
-    print("Loading ImageNet weights...")
-    pretrained = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
-    pretrained_layers = nn.Sequential(*list(pretrained.children())[:-2])
-    model.image_encoder.load_state_dict(pretrained_layers.state_dict())
-    print("ImageNet injected.")
+    if os.path.exists(WEIGHTS_FILE):
+        print(f"Znaleziono plik {WEIGHTS_FILE}. Wczytywanie wytrenowanego modelu...")
+        try:
+            model.load_state_dict(torch.load(WEIGHTS_FILE, map_location=device))
+            print("Sukces! Wagi załadowane - kontynuujemy trening (fine-tuning).")
+            
+        except Exception as e:
+            print(f"Błąd podczas ładowania wag: {e}. Rozpoczynam trening od zera.")
+            print("Loading ImageNet weights...")
+            pretrained = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
+            pretrained_layers = nn.Sequential(*list(pretrained.children())[:-2])
+            model.image_encoder.load_state_dict(pretrained_layers.state_dict())
+            print("ImageNet injected.")
+    else:
+        print("Brak zapisanego modelu. Rozpoczynam trening od zera.")
+        print("Loading ImageNet weights...")
+        pretrained = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
+        pretrained_layers = nn.Sequential(*list(pretrained.children())[:-2])
+        model.image_encoder.load_state_dict(pretrained_layers.state_dict())
+        print("ImageNet injected.")
 
     criterion = nn.BCELoss()
     optimizer = torch.optim.AdamW(
