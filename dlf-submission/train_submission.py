@@ -8,8 +8,9 @@ import pandas as pd
 from tqdm import tqdm
 import random
 import torch.amp 
-
-# Zakładam, że plik model.py jest w tym samym folderze
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
 from model import SubmissionModel
 
 # =====================
@@ -20,7 +21,7 @@ CSV_FILE = os.path.join(DATA_DIR, "captions_flickr8k_12_02.csv")
 IMG_DIR = os.path.join(DATA_DIR, "datasets")
 
 BATCH_SIZE = 64
-EPOCHS = 20
+EPOCHS = 18
 LR = 1e-4
 NUM_WORKERS = int(os.cpu_count() * 0.8)
 
@@ -66,6 +67,7 @@ def main():
     print("Device:", device)
 
     df = pd.read_csv(CSV_FILE)
+    df = df.sample(frac=0.5, random_state=42)
 
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -87,7 +89,7 @@ def main():
 
     model = SubmissionModel().to(device)
     
-    WEIGHTS_FILE = "weights_97_72_66.pth"
+    WEIGHTS_FILE = "weights.pth"
 
     if os.path.exists(WEIGHTS_FILE):
         print(f"Znaleziono plik {WEIGHTS_FILE}. Wczytywanie wytrenowanego modelu...")
@@ -120,6 +122,16 @@ def main():
 
     best_acc = 0.0
 
+    batch_losses = []
+    batch_accs = []
+    batch_nums = []
+
+    last_epoch_preds = []
+    last_epoch_labels = []
+
+    epoch_accs = []
+    batches_per_epoch = len(loader)
+
     model.train()
     for epoch in range(EPOCHS):
         total_loss = 0.0
@@ -134,16 +146,12 @@ def main():
 
             optimizer.zero_grad(set_to_none=True)
 
-            # 1. Autocast tylko dla forward pass (obliczenia modelu)
             with torch.amp.autocast('cuda'):
                 outputs = model(images, list(captions))
                 outputs = outputs.squeeze()
             
-            # 2. FIX: Wychodzimy z autocast i rzutujemy na float32 dla BCELoss
-            # To zapobiega błędowi "unsafe to autocast"
             loss = criterion(outputs.float(), labels.float())
 
-            # 3. Skalowanie gradientów
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
@@ -151,27 +159,63 @@ def main():
             total_loss += loss.item()
 
             # --- ACCURACY ---
-            # Ponieważ BCELoss działa na prawdopodobieństwach (Sigmoid), próg to 0.5
             predicted = (outputs > 0.5).float()
             correct_predictions += (predicted == labels).sum().item()
             total_samples += labels.size(0)
 
+            batch_acc = (predicted == labels).float().mean().item()
+
+            batch_losses.append(loss.item())
+            batch_accs.append(batch_acc)
+            batch_nums.append(len(batch_nums))
+
+            if epoch == EPOCHS - 1:
+                last_epoch_preds.extend(predicted.cpu().numpy())
+                last_epoch_labels.extend(labels.cpu().numpy())
+
             loop.set_postfix(loss=loss.item())
 
-        # Podsumowanie epoki
         epoch_loss = total_loss / len(loader)
         epoch_acc = correct_predictions / total_samples
+
+        epoch_accs.append(epoch_acc)
 
         print(f"Epoch {epoch+1} summary | Loss: {epoch_loss:.4f} | Acc: {epoch_acc:.4f}")
 
         if epoch_acc > best_acc:
             print(f" >>> New Best Accuracy! ({best_acc:.4f} -> {epoch_acc:.4f}). Saving model...")
             best_acc = epoch_acc
-            torch.save(model.state_dict(), "weights.pth")
+            torch.save(model.state_dict(), WEIGHTS_FILE)
         else:
             print(f" ... Accuracy did not improve (Best: {best_acc:.4f})")
 
     print("Training complete.")
+
+    # Generate plots
+    fig, axes = plt.subplots(1, 3, figsize=(21, 6))
+
+    axes[0].plot(batch_nums, batch_losses, color='tab:red')
+    axes[0].set_title('Training Loss')
+    axes[0].set_xlabel('Batch')
+    axes[0].set_ylabel('Loss')
+
+    epoch_end_positions = [(i+1)*batches_per_epoch - 1 for i in range(EPOCHS)]
+    axes[1].plot(batch_nums, batch_accs, color='tab:blue', label='Batch Accuracy')
+    axes[1].plot(epoch_end_positions, epoch_accs, 'o-', color='green', label='Epoch Average Accuracy')
+    axes[1].set_title('Training Accuracy')
+    axes[1].set_xlabel('Batch')
+    axes[1].set_ylabel('Accuracy')
+    axes[1].legend()
+
+    cm = confusion_matrix(last_epoch_labels, last_epoch_preds)
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Negative', 'Positive'], yticklabels=['Negative', 'Positive'], ax=axes[2])
+    axes[2].set_title('Confusion Matrix (Last Epoch)')
+    axes[2].set_xlabel('Predicted')
+    axes[2].set_ylabel('True')
+
+    plt.tight_layout()
+    plt.savefig('training_plots.png', dpi=300, bbox_inches='tight')
+    plt.show()
 
 if __name__ == "__main__":
     main()

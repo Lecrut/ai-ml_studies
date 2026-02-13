@@ -16,3 +16,4 @@ tqdm==4.67.1
 requests==2.32.5
 opencv-python
 torchviz
+transformers==5.1.0
