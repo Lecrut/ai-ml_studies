@@ -1,10 +1,12 @@
 numpy<2.0.0
+autorom[accept-rom-license]
 tensorflow
 pandas
 scikit-learn
 matplotlib
 seaborn
 gymnasium
-gymnasium[atari,accept-rom-license]
+gymnasium[atari, accept-rom-license]
 opencv-python
 stable-baselines3>=2.0.0
+tensorflow
