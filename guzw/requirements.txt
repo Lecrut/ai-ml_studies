@@ -10,3 +10,4 @@ gymnasium[atari, accept-rom-license]
 opencv-python
 stable-baselines3>=2.0.0
 tensorflow
+pygame
