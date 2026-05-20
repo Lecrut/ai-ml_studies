@@ -43,7 +43,7 @@ class DuelingDQN(nn.Module):
 class MyAgent:
     def __init__(self):
         self.best_reward = float('-inf')
-        self.path = "records/race_model.pth" 
+        self.path = "project/records/race_model.pth" 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         self.model = DuelingDQN(input_size=18, output_size=5).to(self.device)
