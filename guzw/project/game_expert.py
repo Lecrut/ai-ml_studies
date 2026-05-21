@@ -1,14 +1,15 @@
-import pygame
-from abstract_car import AbstractCar
-from utils import scale_image
-from itertools import permutations
-import numpy as np
 import math
-from agent_expert import MyAgent
-import random
-import copy
 from collections import deque
+from itertools import permutations
+from pathlib import Path
+
+import numpy as np
+import pygame
 from tqdm import trange, tqdm
+
+from abstract_car import AbstractCar
+from agent_expert import MyAgent
+from utils import scale_image
 
 #Based on https://github.com/techwithtim/Pygame-Car-Racer
 
@@ -29,7 +30,7 @@ GRAY_CAR = scale_image(pygame.image.load("project/imgs/grey-car.png"), 0.35)
 
 
 WIDTH, HEIGHT = TRACK.get_width(), TRACK.get_height()
-WIN = pygame.display.set_mode((WIDTH, HEIGHT))
+WIN = pygame.Surface((WIDTH, HEIGHT))
 pygame.display.set_caption("Racing Game!")
 
 pygame.font.init()  # Initialize the font module
@@ -37,6 +38,12 @@ FONT = pygame.font.Font(None, 24)  # Use a default font with size 24
 
 
 FPS = 60
+FRAME_SKIP = 4
+FRAME_STACK_SIZE = 4
+CAPTURE_SIZE = (84, 84)
+DATASET_BATCH_SIZE = 1000
+DATASET_OUTPUT_DIR = Path("project/records/dataset")
+ACTION_NAMES = ["forward", "backward", "left", "right", "stop"]
 
 track_path =  [(175, 119), (110, 70), (56, 133), (70, 481), (318, 731), (404, 680), (418, 521), (507, 475), (600, 551), (613, 715), (736, 713),
         (734, 399), (611, 357), (409, 343), (433, 257), (697, 258), (738, 123), (581, 71), (303, 78), (275, 377), (176, 388), (178, 260)]
@@ -61,6 +68,63 @@ def draw_checkpoints(win, checkpoints):
     for x, y in checkpoints:
         pygame.draw.circle(win, (0, 255, 0), (x, y), 5)
 
+
+def preprocess_frame(surface, size=CAPTURE_SIZE):
+    scaled_surface = pygame.transform.smoothscale(surface, size)
+    rgb_frame = pygame.surfarray.array3d(scaled_surface).astype(np.float32)
+    grayscale_frame = rgb_frame.mean(axis=2)
+    return np.transpose(grayscale_frame).astype(np.uint8)
+
+
+def action_to_index(action):
+    try:
+        return ACTION_NAMES.index(action)
+    except ValueError as error:
+        raise ValueError(f"Unknown action: {action}") from error
+
+
+class DatasetCollector:
+    def __init__(self, output_dir=DATASET_OUTPUT_DIR, batch_size=DATASET_BATCH_SIZE, stack_size=FRAME_STACK_SIZE):
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.batch_size = batch_size
+        self.stack_size = stack_size
+        self.frame_buffer = deque(maxlen=stack_size)
+        self.samples = []
+        self.batch_index = 1
+
+    def add_frame(self, surface):
+        self.frame_buffer.append(preprocess_frame(surface))
+
+    def record_sample(self, action):
+        if len(self.frame_buffer) < self.stack_size:
+            return False
+
+        stacked_frames = np.stack(self.frame_buffer, axis=0)
+        self.samples.append((stacked_frames, action_to_index(action)))
+
+        if len(self.samples) >= self.batch_size:
+            self.flush()
+
+        return True
+
+    def flush(self):
+        if not self.samples:
+            return None
+
+        states = np.stack([sample for sample, _ in self.samples], axis=0)
+        actions = np.array([action for _, action in self.samples], dtype=np.uint8)
+
+        output_path = self.output_dir / f"batch_{self.batch_index:03d}.npz"
+        np.savez_compressed(output_path, states=states, actions=actions)
+
+        self.samples.clear()
+        self.batch_index += 1
+        return output_path
+
+    def close(self):
+        return self.flush()
+
 # In the game loop
 
 
@@ -73,7 +137,7 @@ class Game:
             pygame.display.set_caption("Racing Game")
             self.clock = pygame.time.Clock()
         else:
-            self.win = None
+            self.win = pygame.Surface((width, height))
             self.clock = None
 
         self.fps = fps
@@ -101,13 +165,12 @@ class Game:
             car.set_position((150, 160))
 
         car.reset()
+        car.current_action = "stop"
         self.cars.append(car)
 
     def draw(self):
         """Draw the background and all cars."""
-        if not self.render:
-            return
-    
+
         for img, pos in self.images:
             self.win.blit(img, pos)
 
@@ -115,8 +178,8 @@ class Game:
             car.draw(self.win)
             #car.draw_rays(self.win, TRACK_BORDER_MASK)
 
-
-        pygame.display.update()
+        if self.render:
+            pygame.display.update()
 
     def check_collisions(self):
 
@@ -157,6 +220,64 @@ class Game:
             _, distances = car.get_rays_and_distances(TRACK_BORDER_MASK)
             car_distances = car.get_distances_to_cars(self.cars)
             car.perform_action(car.choose_action([distances, car_distances, car.get_progress(), CHECKPOINTS]))
+
+    def _get_car_state(self, car):
+        _, distances = car.get_rays_and_distances(TRACK_BORDER_MASK)
+        car_distances = car.get_distances_to_cars(self.cars)
+        return [distances, car_distances, car.get_progress(), CHECKPOINTS]
+
+    def run_for_dataset(self, collector, frame_skip=FRAME_SKIP, max_steps=None):
+        """Run the game loop while collecting imitation-learning samples."""
+        who_finished_first = []
+        step = 0
+
+        while self.running and len(self.cars) != 0:
+            if max_steps is not None and step >= max_steps:
+                break
+
+            if self.render and self.clock:
+                self.clock.tick(self.fps)
+
+            if self.render:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        self.running = False
+
+            decision_frame = (step % frame_skip == 0)
+
+            for car in self.cars:
+                car.update_progress(CHECKPOINTS)
+
+            if decision_frame:
+                self.draw()
+                collector.add_frame(self.win)
+
+                for car in self.cars:
+                    action = car.choose_action(self._get_car_state(car))
+                    car.current_action = action
+                    collector.record_sample(action)
+
+            for car in self.cars:
+                car.perform_action(car.current_action)
+
+            self.check_collisions()
+            finish_lines = self.check_finish_line()
+            if len(finish_lines) != 0:
+                who_finished_first.append(finish_lines)
+
+            if self.render:
+                self.draw()
+
+            step += 1
+
+        collector.close()
+
+        if self.render:
+            pygame.quit()
+
+        print("Game over!")
+        print(who_finished_first)
+        return who_finished_first
 
     def run(self):
         """Main game loop."""
@@ -261,69 +382,15 @@ class PlayerCar2(AbstractCar):
         actions = ["forward", "backward", "left", "right", "stop"]
         return actions[action_index]
 
-        # keys = pygame.key.get_pressed()
-
-        # if keys[pygame.K_w]:
-        #     return "forward"
-        # elif keys[pygame.K_s]:
-        #     return "backward"
-        # elif keys[pygame.K_a]:
-        #     return "left"
-        # elif keys[pygame.K_d]:
-        #     return "right"
-        # else:
-        #     return "stop"
-
-class PlayerCar2(AbstractCar):
-    def __init__(self, name):
-        super().__init__(name)
-        car_agent = MyAgent()
-        car_agent.load()
-        self.agent = car_agent
-
-    def choose_action(self, state):
-        augmented_state = list(state) 
-        augmented_state.append(self.vel / self.max_vel)
-        
-        action_index = int(self.agent.predict(augmented_state).argmax())
-        actions = ["forward", "backward", "left", "right", "stop"]
-        return actions[action_index]
-    
-
 
 def main():
-    final_results = dict()
+    collector = DatasetCollector(output_dir=DATASET_OUTPUT_DIR, batch_size=DATASET_BATCH_SIZE)
 
-    #initializing players - it is possible to play up to 4 players together
-    # players = [PlayerCar("P1"), PlayerCar2("P2"), PlayerCar("P1"), PlayerCar2("P2")]
-    players = [PlayerCar2("AI_1")] #, PlayerCar2("AI_2"), PlayerCar2("AI_3"), PlayerCar2("AI_4")]
-
-    for p in players:
-        final_results[p.get_name()] = 0
-
-    perm = permutations(players)
-
-    for p in perm:
-
-        print(p)
-
-        game = Game(WIDTH, HEIGHT, FPS)
-
-        # Add cars
-        for player in p:
-            game.add_car(player)
-
-        # Run the game
-        temp_rank = game.run()
-
-        points = len(players)
-
-        for tr in temp_rank:
-            for t in tr:
-                final_results[t] += points
-            points -= 1
-
-    print(final_results)
+    # Zawsze uruchamiamy tylko zbieranie datasetu.
+    game = Game(WIDTH, HEIGHT, FPS, render=False)
+    expert = PlayerCar2("AI_1")
+    game.add_car(expert)
+    game.run_for_dataset(collector, frame_skip=FRAME_SKIP)
 
 if __name__ == "__main__":
     main()
