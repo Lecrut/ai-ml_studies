@@ -43,6 +43,7 @@ FRAME_STACK_SIZE = 4
 CAPTURE_SIZE = (84, 84)
 DATASET_BATCH_SIZE = 1000
 DATASET_OUTPUT_DIR = Path("project/records/dataset")
+NUM_EPISODES = 5
 ACTION_NAMES = ["forward", "backward", "left", "right", "stop"]
 
 track_path =  [(175, 119), (110, 70), (56, 133), (70, 481), (318, 731), (404, 680), (418, 521), (507, 475), (600, 551), (613, 715), (736, 713),
@@ -386,11 +387,13 @@ class PlayerCar2(AbstractCar):
 def main():
     collector = DatasetCollector(output_dir=DATASET_OUTPUT_DIR, batch_size=DATASET_BATCH_SIZE)
 
-    # Zawsze uruchamiamy tylko zbieranie datasetu.
-    game = Game(WIDTH, HEIGHT, FPS, render=False)
-    expert = PlayerCar2("AI_1")
-    game.add_car(expert)
-    game.run_for_dataset(collector, frame_skip=FRAME_SKIP)
+    for _ in range(NUM_EPISODES):
+        game = Game(WIDTH, HEIGHT, FPS, render=False)
+        expert = PlayerCar2("AI_1")
+        game.add_car(expert)
+        game.run_for_dataset(collector, frame_skip=FRAME_SKIP)
+
+    collector.close()
 
 if __name__ == "__main__":
     main()

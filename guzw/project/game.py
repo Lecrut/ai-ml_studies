@@ -1,8 +1,13 @@
+from collections import deque
+from pathlib import Path
+
+import numpy as np
 import pygame
 from abstract_car import AbstractCar
 from utils import scale_image
 from itertools import permutations
-import numpy as np
+
+from model import ACTION_NAMES, load_model, predict_action
 
 #Based on https://github.com/techwithtim/Pygame-Car-Racer
 
@@ -31,6 +36,9 @@ FONT = pygame.font.Font(None, 24)  # Use a default font with size 24
 
 
 FPS = 60
+FRAME_STACK_SIZE = 4
+CAPTURE_SIZE = (84, 84)
+DEFAULT_MODEL_PATH = Path(__file__).resolve().parent / "records" / "imitation_model.pth"
 
 track_path =  [(175, 119), (110, 70), (56, 133), (70, 481), (318, 731), (404, 680), (418, 521), (507, 475), (600, 551), (613, 715), (736, 713),
         (734, 399), (611, 357), (409, 343), (433, 257), (697, 258), (738, 123), (581, 71), (303, 78), (275, 377), (176, 388), (178, 260)]
@@ -54,6 +62,13 @@ CHECKPOINTS = generate_checkpoints(track_path)
 def draw_checkpoints(win, checkpoints):
     for x, y in checkpoints:
         pygame.draw.circle(win, (0, 255, 0), (x, y), 5)
+
+
+def preprocess_frame(surface, size=CAPTURE_SIZE):
+    scaled_surface = pygame.transform.smoothscale(surface, size)
+    rgb_frame = pygame.surfarray.array3d(scaled_surface).astype(np.float32)
+    grayscale_frame = rgb_frame.mean(axis=2)
+    return np.transpose(grayscale_frame).astype(np.uint8)
 
 # In the game loop
 
@@ -138,9 +153,7 @@ class Game:
             car.update_progress(CHECKPOINTS)
 
         for car in self.cars:
-            _, distances = car.get_rays_and_distances(TRACK_BORDER_MASK)
-            car_distances = car.get_distances_to_cars(self.cars)
-            car.perform_action(car.choose_action([distances, car_distances, car.get_progress(), CHECKPOINTS]))
+            car.perform_action(car.choose_action(self.win))
     def run(self):
         """Main game loop."""
         who_finished_first = []
@@ -148,6 +161,8 @@ class Game:
             self.clock.tick(self.fps)
             # draw_checkpoints(self.win, CHECKPOINTS)
             # pygame.display.update()
+
+            self.draw()
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -207,44 +222,29 @@ class PlayerCar2(AbstractCar):
     def __init__(self, name):
         # Call the AbstractCar __init__ method
         super().__init__(name)
+        self.model, checkpoint = load_model(DEFAULT_MODEL_PATH)
+        self.frame_stack_size = checkpoint.get("frame_stack", FRAME_STACK_SIZE)
+        self.frame_buffer = deque(maxlen=self.frame_stack_size)
 
     def choose_action(self, state):
         """
-        Determines the next action for the car based on the current state of the environment.
+        Predicts the next action from the current rendered frame.
 
-        Parameters:
-            state (list): A 3-element list representing the car's current state:
-                - state[0]: A list of 8 float values representing distances to the track border
-                            in 8 directions (every 45 degrees, starting from forward).
-                - state[1]: A list of 8 float values representing distances to the nearest car
-                           in the same 8 directions.
-                - state[2]: A 2-element list representing progress information:
-                            - state[2][0]: The index of the closest checkpoint.
-                            - state[2][1]: The car's progress, e.g., distance to the next checkpoint
-                                           or normalized progress value.
-
-        Returns:
-            - "forward": Move the car forward.
-            - "backward": Move the car backward.
-            - "left": Turn the car left.
-            - "right": Turn the car right.
-            - "stop": Reduce the car's speed.
+        The imitation model was trained on 4-frame grayscale stacks, so this
+        method keeps the latest frames in a fixed buffer and runs inference on
+        the stacked observation.
             """
 
-        """INSERT YOUR CODE HERE"""
+        frame = preprocess_frame(state)
+        self.frame_buffer.append(frame)
 
-        keys = pygame.key.get_pressed()
+        if len(self.frame_buffer) < self.frame_buffer.maxlen:
+            while len(self.frame_buffer) < self.frame_buffer.maxlen:
+                self.frame_buffer.append(frame)
 
-        if keys[pygame.K_w]:
-            return "forward"
-        elif keys[pygame.K_s]:
-            return "backward"
-        elif keys[pygame.K_a]:
-            return "left"
-        elif keys[pygame.K_d]:
-            return "right"
-        else:
-            return "stop"
+        stacked_frames = np.stack(self.frame_buffer, axis=0)
+        action_index = predict_action(self.model, stacked_frames)
+        return ACTION_NAMES[action_index]
 
 def main():
 
