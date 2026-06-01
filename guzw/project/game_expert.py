@@ -40,9 +40,9 @@ FONT = pygame.font.Font(None, 24)  # Use a default font with size 24
 FPS = 60
 FRAME_SKIP = 4
 FRAME_STACK_SIZE = 4
-CAPTURE_SIZE = (84, 84)
+CAPTURE_SIZE = (256, 256)
 DATASET_BATCH_SIZE = 1000
-DATASET_OUTPUT_DIR = Path("project/records/dataset")
+DATASET_OUTPUT_DIR = Path("project/dataset")
 NUM_EPISODES = 5
 ACTION_NAMES = ["forward", "backward", "left", "right", "stop"]
 
@@ -50,7 +50,6 @@ track_path =  [(175, 119), (110, 70), (56, 133), (70, 481), (318, 731), (404, 68
         (734, 399), (611, 357), (409, 343), (433, 257), (697, 258), (738, 123), (581, 71), (303, 78), (275, 377), (176, 388), (178, 260)]
 
 
-# Interpolate evenly spaced checkpoints
 def generate_checkpoints(track_path, num_checkpoints=100):
     checkpoints = []
     for i in range(len(track_path) - 1):
@@ -72,9 +71,8 @@ def draw_checkpoints(win, checkpoints):
 
 def preprocess_frame(surface, size=CAPTURE_SIZE):
     scaled_surface = pygame.transform.smoothscale(surface, size)
-    rgb_frame = pygame.surfarray.array3d(scaled_surface).astype(np.float32)
-    grayscale_frame = rgb_frame.mean(axis=2)
-    return np.transpose(grayscale_frame).astype(np.uint8)
+    rgb_frame = pygame.surfarray.array3d(scaled_surface).astype(np.uint8)
+    return np.transpose(rgb_frame, (1, 0, 2))
 
 
 def action_to_index(action):
@@ -88,11 +86,9 @@ class DatasetCollector:
     def __init__(self, output_dir=DATASET_OUTPUT_DIR, batch_size=DATASET_BATCH_SIZE, stack_size=FRAME_STACK_SIZE):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.batch_size = batch_size
         self.stack_size = stack_size
         self.frame_buffer = deque(maxlen=stack_size)
-        self.samples = []
-        self.batch_index = 1
+        self.sample_index = 1
 
     def add_frame(self, surface):
         self.frame_buffer.append(preprocess_frame(surface))
@@ -100,33 +96,21 @@ class DatasetCollector:
     def record_sample(self, action):
         if len(self.frame_buffer) < self.stack_size:
             return False
-
         stacked_frames = np.stack(self.frame_buffer, axis=0)
-        self.samples.append((stacked_frames, action_to_index(action)))
+        action_idx = action_to_index(action)
 
-        if len(self.samples) >= self.batch_size:
-            self.flush()
+        output_path = self.output_dir / f"sample_{self.sample_index:06d}.npz"
+        np.savez_compressed(output_path, states=stacked_frames, actions=np.array(action_idx, dtype=np.uint8))
+        self.sample_index += 1
 
         return True
 
     def flush(self):
-        if not self.samples:
-            return None
-
-        states = np.stack([sample for sample, _ in self.samples], axis=0)
-        actions = np.array([action for _, action in self.samples], dtype=np.uint8)
-
-        output_path = self.output_dir / f"batch_{self.batch_index:03d}.npz"
-        np.savez_compressed(output_path, states=states, actions=actions)
-
-        self.samples.clear()
-        self.batch_index += 1
-        return output_path
+        return None
 
     def close(self):
-        return self.flush()
+        return None
 
-# In the game loop
 
 
 class Game:
@@ -248,10 +232,11 @@ class Game:
 
             for car in self.cars:
                 car.update_progress(CHECKPOINTS)
+                
+            collector.add_frame(self.win)
 
             if decision_frame:
                 self.draw()
-                collector.add_frame(self.win)
 
                 for car in self.cars:
                     action = car.choose_action(self._get_car_state(car))
