@@ -372,8 +372,9 @@ class PlayerCar2(AbstractCar):
 def main():
     collector = DatasetCollector(output_dir=DATASET_OUTPUT_DIR, batch_size=DATASET_BATCH_SIZE)
 
-    for _ in range(NUM_EPISODES):
-        game = Game(WIDTH, HEIGHT, FPS, render=False)
+    for i in range(NUM_EPISODES):
+        print("Starting new episode number ", i + 1)
+        game = Game(WIDTH, HEIGHT, FPS, render=True)
         expert = PlayerCar2("AI_1")
         game.add_car(expert)
         game.run_for_dataset(collector, frame_skip=FRAME_SKIP)
