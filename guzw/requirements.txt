@@ -12,3 +12,4 @@ stable-baselines3>=2.0.0
 tensorflow
 pygame
 lightning
+comet-ml
