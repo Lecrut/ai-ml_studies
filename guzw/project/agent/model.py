@@ -28,3 +28,5 @@ class MyCarAgent:
             loss.backward()
             self.optimizer.step()
 
+    def load_weights(self, path):
+        self.net.load_state_dict(torch.load(path))

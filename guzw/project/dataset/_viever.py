@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 from random import choice, Random
-
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -72,7 +72,7 @@ def show_sample(sample_path: Path, states: np.ndarray, action_index: int) -> Non
 
 	for index, axis in enumerate(axes_array):
 		if index < frame_count:
-			frame = states[index]
+			frame = cv2.cvtColor(cv2.cvtColor(states[index], cv2.COLOR_RGB2HSV), cv2.COLOR_RGB2GRAY)
 			axis.imshow(frame)
 			axis.set_title(f"Frame {index + 1}")
 			axis.axis("off")

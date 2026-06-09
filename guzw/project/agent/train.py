@@ -72,7 +72,7 @@ class NPZImageDataset(Dataset):
             if img.dtype != np.uint8:
                 img = img.astype(np.uint8)
                 
-            gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+            gray = cv2.cvtColor(cv2.cvtColor(img, cv2.COLOR_RGB2HSV), cv2.COLOR_RGB2GRAY)
             
             resized = cv2.resize(gray, (self.w, self.h), interpolation=cv2.INTER_AREA)
             
@@ -181,18 +181,19 @@ def main():
         width = 100       
         batch_size = 32
         learning_rate = 1e-4
-        epochs = 200
+        epochs = 250
         num_workers = 4   
         gpus = 1 if torch.cuda.is_available() else 0
         precision = "16-mixed" 
         gradient_clip_val = 1.0
         checkpoint_dir = 'checkpoints/car_agent'
-        resume_checkpoint = None
+        resume_checkpoint = 'checkpoints\car_agent\car-agent-epoch=248-val_loss=0.68.ckpt'
         comet_project_name = "autonomous-car-agent"
 
     config = Config()
     trainer = CarTrainer(config)
     best_model_path = trainer.train()
+    torch.save(trainer.model.net.state_dict(), 'project/records/best_car_agent_clone.pth')
     print(f"\nNajlepszy model: {best_model_path}")
 
 if __name__ == "__main__":

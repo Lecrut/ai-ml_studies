@@ -6,8 +6,7 @@ import pygame
 from abstract_car import AbstractCar
 from utils import scale_image
 from itertools import permutations
-
-from project.agent.model import ACTION_NAMES, load_model, predict_action
+from agent.model import MyCarAgent
 
 #Based on https://github.com/techwithtim/Pygame-Car-Racer
 
@@ -38,7 +37,7 @@ FONT = pygame.font.Font(None, 24)  # Use a default font with size 24
 FPS = 60
 FRAME_STACK_SIZE = 4
 CAPTURE_SIZE = (84, 84)
-DEFAULT_MODEL_PATH = Path(__file__).resolve().parent / "records" / "imitation_model.pth"
+DEFAULT_MODEL_PATH = Path(__file__).resolve().parent / "records" / "best_car_agent_clone.pth"
 
 track_path =  [(175, 119), (110, 70), (56, 133), (70, 481), (318, 731), (404, 680), (418, 521), (507, 475), (600, 551), (613, 715), (736, 713),
         (734, 399), (611, 357), (409, 343), (433, 257), (697, 258), (738, 123), (581, 71), (303, 78), (275, 377), (176, 388), (178, 260)]
@@ -190,19 +189,11 @@ class PlayerCar(AbstractCar):
     def __init__(self, name):
         # Call the AbstractCar __init__ method
         super().__init__(name)
+        self.model = MyCarAgent(4, 5)
+
+        self.model.load_weights(DEFAULT_MODEL_PATH)
 
     def choose_action(self, state):
-        """
-        Perform an action based on the input.
-
-        Actions:
-        - "forward": Move the car forward.
-        - "backward": Move the car backward.
-        - "left": Turn the car left.
-        - "right": Turn the car right.
-        - "stop": Reduce the car's speed.
-        """
-
         keys = pygame.key.get_pressed()
 
         if keys[pygame.K_UP]:
@@ -216,42 +207,12 @@ class PlayerCar(AbstractCar):
         else:
             return "stop"
 
-
-class PlayerCar2(AbstractCar):
-
-    def __init__(self, name):
-        # Call the AbstractCar __init__ method
-        super().__init__(name)
-        self.model, checkpoint = load_model(DEFAULT_MODEL_PATH)
-        self.frame_stack_size = checkpoint.get("frame_stack", FRAME_STACK_SIZE)
-        self.frame_buffer = deque(maxlen=self.frame_stack_size)
-
-    def choose_action(self, state):
-        """
-        Predicts the next action from the current rendered frame.
-
-        The imitation model was trained on 4-frame grayscale stacks, so this
-        method keeps the latest frames in a fixed buffer and runs inference on
-        the stacked observation.
-            """
-
-        frame = preprocess_frame(state)
-        self.frame_buffer.append(frame)
-
-        if len(self.frame_buffer) < self.frame_buffer.maxlen:
-            while len(self.frame_buffer) < self.frame_buffer.maxlen:
-                self.frame_buffer.append(frame)
-
-        stacked_frames = np.stack(self.frame_buffer, axis=0)
-        action_index = predict_action(self.model, stacked_frames)
-        return ACTION_NAMES[action_index]
-
 def main():
 
     final_results = dict()
 
     #initializing players - it is possible to play up to 4 players together
-    players = [PlayerCar("P1"), PlayerCar2("P2"), PlayerCar("P1"), PlayerCar2("P2")]
+    players = [PlayerCar("P1")]
 
     for p in players:
         final_results[p.get_name()] = 0
