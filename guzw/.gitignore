@@ -9,3 +9,4 @@ __pycache__/
 # Logs and temporary files
 logs/   
 temp/
+checkpoints/

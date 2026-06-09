@@ -7,7 +7,7 @@ from abstract_car import AbstractCar
 from utils import scale_image
 from itertools import permutations
 
-from model import ACTION_NAMES, load_model, predict_action
+from project.agent.model import ACTION_NAMES, load_model, predict_action
 
 #Based on https://github.com/techwithtim/Pygame-Car-Racer
 
