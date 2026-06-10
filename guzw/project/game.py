@@ -211,34 +211,41 @@ class PlayerCar(AbstractCar):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.net.to(self.device)
 
+        self.current_action = "forward"
+        self.frame_counter = 0
+
     def _preprocess_surface_for_model(self, surface):
         local_surface = get_local_camera_view(surface, self)
         
-        rgb_frame = pygame.surfarray.array3d(local_surface)
+        scaled_surface = pygame.transform.smoothscale(local_surface, (100, 100))
+        rgb_frame = pygame.surfarray.array3d(scaled_surface)
         rgb_frame = np.transpose(rgb_frame, (1, 0, 2)).astype(np.uint8)
 
         hsv_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2HSV)
         gray_frame = cv2.cvtColor(hsv_frame, cv2.COLOR_RGB2GRAY)
         
-        resized = cv2.resize(gray_frame, (100, 100), interpolation=cv2.INTER_AREA)
-        
-        normalized = resized.astype(np.float32) / 255.0
+        normalized = gray_frame.astype(np.float32) / 255.0
         return normalized
 
     def choose_action(self, surface):       
         processed_frame = self._preprocess_surface_for_model(surface)
         self.frame_buffer.append(processed_frame)
 
-        if len(self.frame_buffer) < FRAME_STACK_SIZE:
-            return "forward"
+        if self.frame_counter % FRAME_STACK_SIZE == 0:
+            if len(self.frame_buffer) < FRAME_STACK_SIZE:
+                self.current_action = "forward"
+            else:
+                state_tensor = torch.from_numpy(np.stack(self.frame_buffer, axis=0)).unsqueeze(0).to(self.device)
 
-        state_tensor = torch.from_numpy(np.stack(self.frame_buffer, axis=0)).unsqueeze(0).to(self.device)
+                with torch.no_grad(): 
+                    output = self.model.net(state_tensor)
+                    action_idx = torch.argmax(output, dim=1).item()
 
-        with torch.no_grad(): 
-            output = self.model.net(state_tensor)
-            action_idx = torch.argmax(output, dim=1).item()
-
-        return self.actions[action_idx]
+                self.current_action = self.actions[action_idx]
+        
+        self.frame_counter += 1
+        return self.current_action
+    
 
 def main():
 

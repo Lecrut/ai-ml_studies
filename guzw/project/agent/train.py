@@ -181,13 +181,13 @@ def main():
         width = 100       
         batch_size = 32
         learning_rate = 1e-4
-        epochs = 250
+        epochs = 100
         num_workers = 4   
         gpus = 1 if torch.cuda.is_available() else 0
         precision = "16-mixed" 
         gradient_clip_val = 1.0
         checkpoint_dir = 'checkpoints/car_agent'
-        resume_checkpoint = 'checkpoints\car_agent\car-agent-epoch=248-val_loss=0.68.ckpt'
+        resume_checkpoint = 'checkpoints\car_agent\car-agent-epoch=99-val_loss=0.00.ckpt'
         comet_project_name = "autonomous-car-agent"
 
     config = Config()

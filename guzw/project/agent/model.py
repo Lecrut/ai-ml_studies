@@ -29,4 +29,9 @@ class MyCarAgent:
             self.optimizer.step()
 
     def load_weights(self, path):
-        self.net.load_state_dict(torch.load(path))
+        try:
+            self.net.load_state_dict(torch.load(path, map_location=torch.device('cpu')))
+            print(f"Model weights loaded successfully from {path}")
+        except Exception as e:
+            print(f"Error loading model weights from {path}: {e}")
+        
