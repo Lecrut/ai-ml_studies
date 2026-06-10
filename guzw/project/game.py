@@ -2,6 +2,8 @@ from collections import deque
 from pathlib import Path
 
 import numpy as np
+import torch
+import cv2
 import pygame
 from abstract_car import AbstractCar
 from utils import scale_image
@@ -62,6 +64,17 @@ def draw_checkpoints(win, checkpoints):
     for x, y in checkpoints:
         pygame.draw.circle(win, (0, 255, 0), (x, y), 5)
 
+def get_local_camera_view(main_surface, car, camera_size=150):
+    camera = pygame.Surface((camera_size, camera_size))
+    car_center_x = car.x + (car.img.get_width() / 2)
+    car_center_y = car.y + (car.img.get_height() / 2)
+    
+    offset_x = (camera_size / 2) - car_center_x
+    offset_y = (camera_size / 2) - car_center_y
+    
+    camera.blit(main_surface, (offset_x, offset_y))
+    return camera
+
 
 def preprocess_frame(surface, size=CAPTURE_SIZE):
     scaled_surface = pygame.transform.smoothscale(surface, size)
@@ -111,7 +124,7 @@ class Game:
 
         for car in self.cars:
             car.draw(self.win)
-            car.draw_rays(self.win, TRACK_BORDER_MASK)
+            # car.draw_rays(self.win, TRACK_BORDER_MASK)
 
 
         pygame.display.update()
@@ -185,27 +198,47 @@ class Game:
 
 
 class PlayerCar(AbstractCar):
-
+    
     def __init__(self, name):
-        # Call the AbstractCar __init__ method
         super().__init__(name)
-        self.model = MyCarAgent(4, 5)
-
+        self.model = MyCarAgent(4, 5) 
         self.model.load_weights(DEFAULT_MODEL_PATH)
+        self.model.net.eval() 
 
-    def choose_action(self, state):
-        keys = pygame.key.get_pressed()
+        self.frame_buffer = deque(maxlen=FRAME_STACK_SIZE)
+        self.actions = ["forward", "backward", "left", "right", "stop"]
+        
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model.net.to(self.device)
 
-        if keys[pygame.K_UP]:
+    def _preprocess_surface_for_model(self, surface):
+        local_surface = get_local_camera_view(surface, self)
+        
+        rgb_frame = pygame.surfarray.array3d(local_surface)
+        rgb_frame = np.transpose(rgb_frame, (1, 0, 2)).astype(np.uint8)
+
+        hsv_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2HSV)
+        gray_frame = cv2.cvtColor(hsv_frame, cv2.COLOR_RGB2GRAY)
+        
+        resized = cv2.resize(gray_frame, (100, 100), interpolation=cv2.INTER_AREA)
+        
+        normalized = resized.astype(np.float32) / 255.0
+        return normalized
+
+    def choose_action(self, surface):       
+        processed_frame = self._preprocess_surface_for_model(surface)
+        self.frame_buffer.append(processed_frame)
+
+        if len(self.frame_buffer) < FRAME_STACK_SIZE:
             return "forward"
-        elif keys[pygame.K_DOWN]:
-            return "backward"
-        elif keys[pygame.K_LEFT]:
-            return "left"
-        elif keys[pygame.K_RIGHT]:
-            return "right"
-        else:
-            return "stop"
+
+        state_tensor = torch.from_numpy(np.stack(self.frame_buffer, axis=0)).unsqueeze(0).to(self.device)
+
+        with torch.no_grad(): 
+            output = self.model.net(state_tensor)
+            action_idx = torch.argmax(output, dim=1).item()
+
+        return self.actions[action_idx]
 
 def main():
 

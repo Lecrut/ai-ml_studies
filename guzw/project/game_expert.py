@@ -40,7 +40,7 @@ FONT = pygame.font.Font(None, 24)  # Use a default font with size 24
 FPS = 60
 FRAME_SKIP = 4
 FRAME_STACK_SIZE = 4
-CAPTURE_SIZE = (256, 256)
+CAPTURE_SIZE = (100, 100)
 DATASET_BATCH_SIZE = 1000
 DATASET_OUTPUT_DIR = Path("project/dataset")
 NUM_EPISODES = 5
@@ -67,6 +67,17 @@ CHECKPOINTS = generate_checkpoints(track_path)
 def draw_checkpoints(win, checkpoints):
     for x, y in checkpoints:
         pygame.draw.circle(win, (0, 255, 0), (x, y), 5)
+
+def get_local_camera_view(main_surface, car, camera_size=150):
+    camera = pygame.Surface((camera_size, camera_size))
+    car_center_x = car.x + (car.img.get_width() / 2)
+    car_center_y = car.y + (car.img.get_height() / 2)
+    
+    offset_x = (camera_size / 2) - car_center_x
+    offset_y = (camera_size / 2) - car_center_y
+    
+    camera.blit(main_surface, (offset_x, offset_y))
+    return camera
 
 
 def preprocess_frame(surface, size=CAPTURE_SIZE):
@@ -110,8 +121,6 @@ class DatasetCollector:
 
     def close(self):
         return None
-
-
 
 class Game:
     def __init__(self, width, height, fps=60, render=True):
@@ -232,8 +241,8 @@ class Game:
 
             for car in self.cars:
                 car.update_progress(CHECKPOINTS)
-                
-            collector.add_frame(self.win)
+                local_view = get_local_camera_view(self.win, car)
+                collector.add_frame(local_view)
 
             if decision_frame:
                 self.draw()
